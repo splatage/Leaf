@@ -1,0 +1,68 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: splatage <noj.melville@gmail.com>
+Date: Wed, 11 Mar 2026 12:31:22 +1300
+Subject: [PATCH] NaturalSpawner.java
+
+
+diff --git a/net/minecraft/world/level/NaturalSpawner.java b/net/minecraft/world/level/NaturalSpawner.java
+index ec6c727a685665b253b28df6a1bb48a97c9d6b8d..dfd408920ac6055d298523feb23d62c86e5bf3c6 100644
+--- a/net/minecraft/world/level/NaturalSpawner.java
++++ b/net/minecraft/world/level/NaturalSpawner.java
+@@ -1,6 +1,7 @@
+ package net.minecraft.world.level;
+ 
+ import com.mojang.logging.LogUtils;
++import io.splatage.leaf.config.modules.spawning.HybridMobCaps;
+ import it.unimi.dsi.fastutil.objects.Object2IntMap;
+ import it.unimi.dsi.fastutil.objects.Object2IntMaps;
+ import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
+@@ -143,9 +144,12 @@ public final class NaturalSpawner {
+                 continue;
+             }
+ 
++            final int hardLimit = HybridMobCaps.enabled ? HybridMobCaps.hardLimits[mobCategory.ordinal()] : -1;
++
+             if ((spawnFriendlies || !mobCategory.isFriendly())
+                 && (spawnEnemies || mobCategory.isFriendly())
+                 && (spawnPassives || !mobCategory.isPersistent())
++                && spawnState.canSpawnForCategoryHardLimit(mobCategory, hardLimit)
+                 && (level.paperConfig().entities.spawning.perPlayerMobSpawns || spawnState.canSpawnForCategoryGlobal(mobCategory, limit))) { // Paper - Optional per player mob spawns; remove global check, check later during the local one
+                 list.add(mobCategory);
+                 // CraftBukkit end
+@@ -174,7 +178,10 @@ public final class NaturalSpawner {
+                     continue;
+                 }
+             }
++
+             // Leaf end - throttle mob spawning
++            final int hardLimit = HybridMobCaps.enabled ? HybridMobCaps.hardLimits[mobCategory.ordinal()] : -1;
++
+             if (level.paperConfig().entities.spawning.perPlayerMobSpawns) {
+                 // Copied from getFilteredSpawningCategories
+                 int limit = mobCategory.getMaxInstancesPerChunk();
+@@ -211,7 +218,9 @@ public final class NaturalSpawner {
+             } else {
+                 canSpawn = spawnState.canSpawnForCategoryLocal(mobCategory, chunk.getPos());
+             }
+-            if (canSpawn) {
++
++            maxSpawns = Math.min(maxSpawns, spawnState.remainingSpawnSlotsForCategoryHardLimit(mobCategory, hardLimit));
++            if (canSpawn && maxSpawns > 0) {
+                 // Paper PR start - throttle failed spawn attempts
+                 int spawnCount = spawnCategoryForChunk(mobCategory, level, chunk, spawnState::canSpawn, spawnState::afterSpawn,
+                     maxSpawns, level.paperConfig().entities.spawning.perPlayerMobSpawns ? level.getChunkSource().chunkMap::updatePlayerMobTypeMap : null, chunkGenerator); // Leaf - optimize mob spawning
+@@ -872,6 +881,14 @@ public final class NaturalSpawner {
+             return this.mobCategoryCounts.getInt(category) < i;
+         }
+ 
++        boolean canSpawnForCategoryHardLimit(MobCategory category, int hardLimit) {
++            return this.remainingSpawnSlotsForCategoryHardLimit(category, hardLimit) > 0;
++        }
++
++        int remainingSpawnSlotsForCategoryHardLimit(MobCategory category, int hardLimit) {
++            return hardLimit < 0 ? Integer.MAX_VALUE : Math.max(0, hardLimit - this.mobCategoryCounts.getInt(category));
++        }
++
+         boolean canSpawnForCategoryLocal(MobCategory category, ChunkPos chunkPos) {
+             return this.localMobCapCalculator.canSpawn(category, chunkPos) || SharedConstants.DEBUG_IGNORE_LOCAL_MOB_CAP;
+         }
