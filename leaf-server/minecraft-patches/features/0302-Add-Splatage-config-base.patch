@@ -3,13 +3,11 @@ From: splatage <noj.melville@gmail.com>
 Date: Tue, 10 Mar 2026 22:00:00 +1300
 Subject: [PATCH] Add Splatage config base
 
-
 diff --git a/net/minecraft/server/Main.java b/net/minecraft/server/Main.java
-index 170d2bac2c280921248c86d266add46260c5a76d..7a67b9b43e33e54192be0a9df1f61103497bfb35 100644
 --- a/net/minecraft/server/Main.java
 +++ b/net/minecraft/server/Main.java
-@@ -101,6 +101,7 @@ public class Main {
-
+@@ -100,7 +100,8 @@ public class Main {
+                 writePidFile(path);
              }
  
              org.dreeam.leaf.config.LeafConfig.loadConfig(); // Leaf - Leaf config
@@ -17,7 +15,8 @@ index 170d2bac2c280921248c86d266add46260c5a76d..7a67b9b43e33e54192be0a9df1f61103
  
              CrashReport.preload();
              if (optionSet.has("jfrProfile")) { // CraftBukkit
-@@ -119,6 +120,7 @@ public class Main {
+@@ -118,7 +119,8 @@ public class Main {
+             Bootstrap.bootStrap();
              Bootstrap.validate();
              Util.startTimerHackThread();
              org.dreeam.leaf.config.ConfigModules.loadAfterBootstrap(); // Leaf - Leaf config - post load
@@ -27,11 +26,10 @@ index 170d2bac2c280921248c86d266add46260c5a76d..7a67b9b43e33e54192be0a9df1f61103
              dedicatedServerSettings.forceSave();
 
 diff --git a/net/minecraft/server/MinecraftServer.java b/net/minecraft/server/MinecraftServer.java
-index 912ef41ae1e97ff856386394d8816710d31d2e13..afc72724132753b5438e9f753bc4f18c952f0d9c 100644
 --- a/net/minecraft/server/MinecraftServer.java
 +++ b/net/minecraft/server/MinecraftServer.java
-@@ -1352,6 +1352,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
-
+@@ -1290,7 +1290,8 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+             org.spigotmc.WatchdogThread.tick();
              // Paper end
              org.spigotmc.WatchdogThread.hasStarted = true; // Paper
              org.dreeam.leaf.config.LeafConfig.regSparkExtraConfig(); // Leaf - Leaf config
