@@ -1,5 +1,6 @@
 package org.dreeam.leaf.command.subcommands;
 
+import io.splatage.leaf.config.SplatageConfig;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.minecraft.server.MinecraftServer;
@@ -23,7 +24,7 @@ public final class ReloadCommand extends PermissionedLeafSubcommand {
     @Override
     public boolean execute(final CommandSender sender, final String subCommand, final String[] args) {
         this.doGaleReload(sender);
-        this.doLeafReload(sender);
+        this.doLeafAndSplatageReload(sender);
         return true;
     }
 
@@ -39,9 +40,12 @@ public final class ReloadCommand extends PermissionedLeafSubcommand {
     }
     // Gale end - Gale commands - /gale reload command
 
-    private void doLeafReload(final CommandSender sender) {
+    private void doLeafAndSplatageReload(final CommandSender sender) {
         Command.broadcastCommandMessage(sender, Component.text("Reloading Leaf config...", NamedTextColor.GREEN));
 
-        LeafConfig.reloadAsync(sender);
+        LeafConfig.reloadAsync(sender).thenCompose(unused -> {
+            Command.broadcastCommandMessage(sender, Component.text("Reloading Splatage config...", NamedTextColor.GREEN));
+            return SplatageConfig.reloadAsync(sender);
+        });
     }
 }
