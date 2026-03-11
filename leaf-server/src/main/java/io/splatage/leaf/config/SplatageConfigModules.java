@@ -3,6 +3,7 @@ package io.splatage.leaf.config;
 import it.unimi.dsi.fastutil.objects.ObjectArrays;
 
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Modifier;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Set;
@@ -20,7 +21,21 @@ public abstract class SplatageConfigModules {
     public static void initModules() throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
         Class<?>[] classes = SplatageConfig.getClasses(SplatageConfig.I_CONFIG_PKG).toArray(new Class[0]);
         ObjectArrays.quickSort(classes, Comparator.comparing(Class::getSimpleName));
+
         for (Class<?> clazz : classes) {
+            if (!SplatageConfigModules.class.isAssignableFrom(clazz)) {
+                continue;
+            }
+            if (clazz == SplatageConfigModules.class) {
+                continue;
+            }
+            if (clazz.isEnum() || clazz.isInterface() || clazz.isAnonymousClass() || clazz.isLocalClass() || clazz.isSynthetic()) {
+                continue;
+            }
+            if (Modifier.isAbstract(clazz.getModifiers())) {
+                continue;
+            }
+
             SplatageConfigModules module = (SplatageConfigModules) clazz.getConstructor().newInstance();
             module.onLoaded();
             MODULES.add(module);
