@@ -1,0 +1,139 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: splatage <noj.melville@gmail.com>
+Date: Wed, 11 Mar 2026 11:59:42 +1300
+Subject: [PATCH] Add temporary pickup persistence expiry
+
+
+diff --git a/net/minecraft/world/entity/Mob.java b/net/minecraft/world/entity/Mob.java
+index 10045bdd3c9692fb0a56f140b4891c67cf64eeea..f02eae97ae0c762fbf09233bc8fb32c996b0639f 100644
+--- a/net/minecraft/world/entity/Mob.java
++++ b/net/minecraft/world/entity/Mob.java
+@@ -2,6 +2,7 @@ package net.minecraft.world.entity;
+ 
+ import com.google.common.annotations.VisibleForTesting;
+ import com.google.common.collect.Maps;
++import io.splatage.leaf.config.modules.spawning.PickupPersistenceExpiry;
+ import it.unimi.dsi.fastutil.objects.Object2IntMap.Entry;
+ import java.util.ArrayList;
+ import java.util.HashSet;
+@@ -142,6 +143,8 @@ public abstract class Mob extends LivingEntity implements EquipmentUser, Leashab
+     private DropChances dropChances = DropChances.DEFAULT;
+     private boolean canPickUpLoot = false;
+     private boolean persistenceRequired = false;
++    private boolean paper$temporaryPickupPersistence = false;
++    private long paper$pickupPersistenceExpiresAt = 0L;
+     private final Map<PathType, Float> pathfindingMalus = Maps.newEnumMap(PathType.class);
+     public Optional<ResourceKey<LootTable>> lootTable = Optional.empty();
+     public long lootTableSeed;
+@@ -461,11 +464,16 @@ public abstract class Mob extends LivingEntity implements EquipmentUser, Leashab
+         if (this.isNoAi()) {
+             output.putBoolean("NoAI", this.isNoAi());
+         }
++
+         output.putBoolean("Bukkit.Aware", this.aware); // CraftBukkit
+         // Paper start - allow changing despawnInPeaceful
+         if (this.despawnInPeacefulOverride != net.kyori.adventure.util.TriState.NOT_SET) {
+             output.putString("Paper.DespawnInPeacefulOverride", this.despawnInPeacefulOverride.name());
+         }
++        if (this.paper$temporaryPickupPersistence) {
++            output.putBoolean("Paper.TemporaryPickupPersistence", true);
++            output.putLong("Paper.PickupPersistenceExpiresAt", this.paper$pickupPersistenceExpiresAt);
++        }
+         // Paper end - allow changing despawnInPeaceful
+         output.putInt("Purpur.ticksSinceLastInteraction", this.ticksSinceLastInteraction); // Purpur - Entity lifespan
+     }
+@@ -495,6 +503,8 @@ public abstract class Mob extends LivingEntity implements EquipmentUser, Leashab
+         this.lootTableSeed = input.getLongOr("DeathLootTableSeed", 0L);
+         this.setNoAi(input.getBooleanOr("NoAI", false));
+         this.aware = input.getBooleanOr("Bukkit.Aware", true); // CraftBukkit
++        this.paper$temporaryPickupPersistence = input.getBooleanOr("Paper.TemporaryPickupPersistence", false);
++        this.paper$pickupPersistenceExpiresAt = input.getLongOr("Paper.PickupPersistenceExpiresAt", 0L);
+         this.ticksSinceLastInteraction = input.getIntOr("Purpur.ticksSinceLastInteraction", 0); // Purpur- Entity lifespan
+         // Paper start - allow changing despawnInPeaceful
+         this.despawnInPeacefulOverride = readDespawnInPeacefulOverride(input);
+@@ -622,9 +632,16 @@ public abstract class Mob extends LivingEntity implements EquipmentUser, Leashab
+     }
+ 
+     protected void pickUpItem(ServerLevel level, ItemEntity entity) {
++        final boolean wasPersistenceRequired = this.isPersistenceRequired();
++        final boolean hadCustomPersistence = this.requiresCustomPersistence();
++
+         ItemStack item = entity.getItem();
+         ItemStack itemStack = this.equipItemIfPossible(level, item.copy(), entity); // CraftBukkit - add item
+         if (!itemStack.isEmpty()) {
++            if (!wasPersistenceRequired && !hadCustomPersistence && this.paper$isEligibleForTemporaryPickupPersistence()) {
++                this.paper$markTemporaryPickupPersistence(level);
++            }
++
+             this.onItemPickup(entity);
+             this.take(entity, itemStack.getCount());
+             item.shrink(itemStack.getCount());
+@@ -777,6 +794,59 @@ public abstract class Mob extends LivingEntity implements EquipmentUser, Leashab
+         return this.isPassenger();
+     }
+ 
++    private boolean paper$isEligibleForTemporaryPickupPersistence() {
++        if (!PickupPersistenceExpiry.enabled || PickupPersistenceExpiry.ticks <= 0) {
++            return false;
++        }
++        if (PickupPersistenceExpiry.monstersOnly && this.getType().getCategory() != MobCategory.MONSTER) {
++            return false;
++        }
++        if (PickupPersistenceExpiry.naturalAndChunkGenerationOnly) {
++            final CreatureSpawnEvent.SpawnReason spawnReason = this.spawnReason;
++            if (spawnReason == null) {
++                return false;
++            }
++            if (spawnReason != CreatureSpawnEvent.SpawnReason.NATURAL
++                && spawnReason != CreatureSpawnEvent.SpawnReason.CHUNK_GEN) {
++                return false;
++            }
++        }
++
++        return true;
++    }
++
++    private void paper$markTemporaryPickupPersistence(ServerLevel level) {
++        this.paper$temporaryPickupPersistence = true;
++        this.paper$pickupPersistenceExpiresAt = level.getGameTime() + PickupPersistenceExpiry.ticks;
++    }
++
++    private boolean paper$hasExplicitPickupPersistenceExemption() {
++        return this.hasCustomName() || this.isLeashed() || this.isVehicle();
++    }
++
++    private boolean paper$shouldBlockNaturalDespawn(ServerLevel level) {
++        if (this.requiresCustomPersistence()) {
++            return true;
++        }
++        if (this.paper$hasExplicitPickupPersistenceExemption()) {
++            return true;
++        }
++        if (!this.isPersistenceRequired()) {
++            return false;
++        }
++        if (!this.paper$temporaryPickupPersistence) {
++            return true;
++        }
++        if (level.getGameTime() < this.paper$pickupPersistenceExpiresAt) {
++            return true;
++        }
++
++        this.paper$temporaryPickupPersistence = false;
++        this.paper$pickupPersistenceExpiresAt = 0L;
++        this.persistenceRequired = false;
++        return false;
++    }
++
+     // Paper start - allow changing despawnInPeaceful
+     public final boolean shouldDespawnInPeaceful() {
+         return this.despawnInPeacefulOverride.toBooleanOrElse(!this.getType().isTypeAllowedInPeaceful());
+@@ -787,7 +857,7 @@ public abstract class Mob extends LivingEntity implements EquipmentUser, Leashab
+     public void checkDespawn() {
+         if (this.level().getDifficulty() == Difficulty.PEACEFUL && this.shouldDespawnInPeaceful()) { // Paper - allow changing despawnInPeaceful
+             this.discard(EntityRemoveEvent.Cause.DESPAWN); // CraftBukkit - add Bukkit remove cause
+-        } else if (!this.isPersistenceRequired() && !this.requiresCustomPersistence()) {
++        } else if (!this.paper$shouldBlockNaturalDespawn((ServerLevel) this.level())) {
+             Entity nearestPlayer = this.level().findNearbyPlayer(this, -1.0, EntitySelector.PLAYER_AFFECTS_SPAWNING); // Paper - Affects Spawning API
+             if (nearestPlayer != null) {
+                 // Paper start - Configurable despawn distances
