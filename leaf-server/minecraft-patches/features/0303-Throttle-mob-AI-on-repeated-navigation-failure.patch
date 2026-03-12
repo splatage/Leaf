@@ -1,0 +1,64 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: splatage <noj.melville@gmail.com>
+Date: Thu, 12 Mar 2026 14:14:27 +1300
+Subject: [PATCH] Throttle mob AI on repeated navigation failure
+
+
+diff --git a/net/minecraft/world/entity/Mob.java b/net/minecraft/world/entity/Mob.java
+index 10045bdd3c9692fb0a56f140b4891c67cf64eeea..f947d9af560f3b2e9eba4cdb391a24213128c504 100644
+--- a/net/minecraft/world/entity/Mob.java
++++ b/net/minecraft/world/entity/Mob.java
+@@ -89,9 +89,12 @@ import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
+ import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
+ import net.minecraft.world.phys.AABB;
+ import net.minecraft.world.phys.Vec3;
++
+ import net.minecraft.world.ticks.ContainerSingleItem;
+ import org.jspecify.annotations.Nullable;
+ 
++import io.splatage.leaf.config.modules.entities.ConfinedMobThrottleConfig;
++
+ // CraftBukkit start
+ import org.bukkit.event.entity.CreatureSpawnEvent;
+ import org.bukkit.event.entity.EntityRemoveEvent;
+@@ -829,6 +832,17 @@ public abstract class Mob extends LivingEntity implements EquipmentUser, Leashab
+             return;
+         }
+         // Paper end - Allow nerfed mobs to jump and float
++
++        // Splatage start - Failed-navigation AI throttle
++        if (this.navigation.isFailedNavigationAiThrottleActive(ConfinedMobThrottleConfig.skipDurationTicks)) {
++            if (this.goalFloat != null) {
++                if (this.goalFloat.canUse()) this.goalFloat.tick();
++                this.getJumpControl().tick();
++            }
++            return;
++        }
++        // Splatage end - Failed-navigation AI throttle
++
+         ProfilerFiller profilerFiller = Profiler.get();
+         profilerFiller.push("sensing");
+         this.sensing.tick();
+diff --git a/net/minecraft/world/entity/ai/navigation/PathNavigation.java b/net/minecraft/world/entity/ai/navigation/PathNavigation.java
+index 6893ac65206ffa2357aa5f725227d5be4b3364a3..79ccba483877176c773336e5a0e387eb2a9622b6 100644
+--- a/net/minecraft/world/entity/ai/navigation/PathNavigation.java
++++ b/net/minecraft/world/entity/ai/navigation/PathNavigation.java
+@@ -225,6 +225,18 @@ public abstract class PathNavigation {
+     private int pathfindFailures = 0;
+     // Paper end - Perf: Optimise pathfinding
+ 
++    // Splatage start - Failed-navigation AI throttle
++    public boolean isFailedNavigationAiThrottleActive(final int skipDurationTicks) {
++        if (skipDurationTicks <= 0) {
++            return false;
++        }
++
++        return this.pathfindFailures > 10
++            && this.path == null
++            && net.minecraft.server.MinecraftServer.currentTick < this.lastFailure + skipDurationTicks;
++    }
++    // Splatage end - Failed-navigation AI throttle
++
+     public boolean moveTo(double x, double y, double z, double speedModifier) {
+         return this.moveTo(this.createPath(x, y, z, 1), speedModifier);
+     }
