@@ -1,11 +1,11 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: splatage <noj.melville@gmail.com>
-Date: Thu, 12 Mar 2026 09:59:52 +1300
-Subject: [PATCH] Improved Copper Golem ai
+Date: Thu, 12 Mar 2026 13:21:25 +1300
+Subject: [PATCH] improved copper golem ai
 
 
 diff --git a/net/minecraft/world/entity/ai/behavior/TransportItemsBetweenContainers.java b/net/minecraft/world/entity/ai/behavior/TransportItemsBetweenContainers.java
-index 2a7cda7fbc400a13e7ab71a6a82496068d9c7ae6..7351337a970f502f7f5e9dae4f2a80beea904a91 100644
+index 2a7cda7fbc400a13e7ab71a6a82496068d9c7ae6..fd64936094a12d167235c15d4ea67dc10c0a7b37 100644
 --- a/net/minecraft/world/entity/ai/behavior/TransportItemsBetweenContainers.java
 +++ b/net/minecraft/world/entity/ai/behavior/TransportItemsBetweenContainers.java
 @@ -1,6 +1,7 @@
@@ -92,7 +92,7 @@ index 2a7cda7fbc400a13e7ab71a6a82496068d9c7ae6..7351337a970f502f7f5e9dae4f2a80be
              BehaviorUtils.setWalkAndLookTargetMemories(mob, this.target.pos, this.speedModifier, 0);
          }
      }
-@@ -273,27 +320,96 @@ public class TransportItemsBetweenContainers extends Behavior<PathfinderMob> {
+@@ -273,27 +320,95 @@ public class TransportItemsBetweenContainers extends Behavior<PathfinderMob> {
          }
      }
  
@@ -198,17 +198,16 @@ index 2a7cda7fbc400a13e7ab71a6a82496068d9c7ae6..7351337a970f502f7f5e9dae4f2a80be
 -                                d = d1;
 +                            if (lockedTarget != null) {
 +                                if (!matchesLeavingItemsRequirement(mob, lockedTarget.container)) {
++                                    // Old destination lock is stale for the current hand item.
++                                    // Clear only the destination lock; preserve the current batch item.
 +                                    paperClearDestinationLock(golem, now);
-+                                    if (CopperGolemConfig.rememberLastItem) {
-+                                        paperClearLastItemMemory(golem, now);
-+                                    }
 +                                } else {
 +                                    return Optional.of(lockedTarget);
 +                                }
                              }
                          }
                      }
-@@ -301,7 +417,165 @@ public class TransportItemsBetweenContainers extends Behavior<PathfinderMob> {
+@@ -301,7 +416,167 @@ public class TransportItemsBetweenContainers extends Behavior<PathfinderMob> {
              }
          }
  
@@ -234,6 +233,8 @@ index 2a7cda7fbc400a13e7ab71a6a82496068d9c7ae6..7351337a970f502f7f5e9dae4f2a80be
 +                lastItemId = golem.paperLastItemId();
 +                if (lastItemId != null && !lastItemId.isEmpty()) {
 +                    preferLastItem = true;
++                } else {
++                    lastItemId = null;
 +                }
 +            }
 +        }
@@ -375,7 +376,7 @@ index 2a7cda7fbc400a13e7ab71a6a82496068d9c7ae6..7351337a970f502f7f5e9dae4f2a80be
      }
  
      private TransportItemsBetweenContainers.@Nullable TransportItemTarget isTargetValidToPick(
-@@ -320,10 +594,9 @@ public class TransportItemsBetweenContainers extends Behavior<PathfinderMob> {
+@@ -320,10 +595,9 @@ public class TransportItemsBetweenContainers extends Behavior<PathfinderMob> {
              } else {
                  boolean flag1 = this.isWantedBlock(mob, transportItemTarget.state)
                      && !this.isPositionAlreadyVisited(visitedPositions, unreachablePositions, transportItemTarget, level)
@@ -387,7 +388,7 @@ index 2a7cda7fbc400a13e7ab71a6a82496068d9c7ae6..7351337a970f502f7f5e9dae4f2a80be
                  return flag1 ? transportItemTarget : null;
              }
          }
-@@ -351,11 +624,14 @@ public class TransportItemsBetweenContainers extends Behavior<PathfinderMob> {
+@@ -351,11 +625,14 @@ public class TransportItemsBetweenContainers extends Behavior<PathfinderMob> {
      }
  
      private boolean hasValidTravellingPath(Level level, TransportItemsBetweenContainers.TransportItemTarget target, PathfinderMob mob) {
@@ -405,7 +406,7 @@ index 2a7cda7fbc400a13e7ab71a6a82496068d9c7ae6..7351337a970f502f7f5e9dae4f2a80be
      }
  
      private Vec3 getPositionToReachTargetFrom(@Nullable Path path, PathfinderMob mob) {
-@@ -393,9 +669,10 @@ public class TransportItemsBetweenContainers extends Behavior<PathfinderMob> {
+@@ -393,9 +670,10 @@ public class TransportItemsBetweenContainers extends Behavior<PathfinderMob> {
          }
      }
  
@@ -419,7 +420,7 @@ index 2a7cda7fbc400a13e7ab71a6a82496068d9c7ae6..7351337a970f502f7f5e9dae4f2a80be
      }
  
      private int getHorizontalSearchDistance(PathfinderMob mob) {
-@@ -417,9 +694,18 @@ public class TransportItemsBetweenContainers extends Behavior<PathfinderMob> {
+@@ -417,9 +695,18 @@ public class TransportItemsBetweenContainers extends Behavior<PathfinderMob> {
      private boolean isPositionAlreadyVisited(
          Set<GlobalPos> visitedPositions, Set<GlobalPos> unreachablePositions, TransportItemsBetweenContainers.TransportItemTarget target, Level level
      ) {
@@ -441,7 +442,7 @@ index 2a7cda7fbc400a13e7ab71a6a82496068d9c7ae6..7351337a970f502f7f5e9dae4f2a80be
      }
  
      private static boolean hasFinishedPath(PathfinderMob mob) {
-@@ -437,6 +723,13 @@ public class TransportItemsBetweenContainers extends Behavior<PathfinderMob> {
+@@ -437,6 +724,13 @@ public class TransportItemsBetweenContainers extends Behavior<PathfinderMob> {
      }
  
      protected void markVisitedBlockPosAsUnreachable(PathfinderMob mob, Level level, BlockPos pos) {
@@ -455,7 +456,7 @@ index 2a7cda7fbc400a13e7ab71a6a82496068d9c7ae6..7351337a970f502f7f5e9dae4f2a80be
          Set<GlobalPos> set = new HashSet<>(getVisitedPositions(mob));
          set.remove(new GlobalPos(level.dimension(), pos));
          Set<GlobalPos> set1 = new HashSet<>(getUnreachablePositions(mob));
-@@ -472,11 +765,22 @@ public class TransportItemsBetweenContainers extends Behavior<PathfinderMob> {
+@@ -472,11 +766,22 @@ public class TransportItemsBetweenContainers extends Behavior<PathfinderMob> {
      }
  
      private boolean canSeeAnyTargetSide(TransportItemsBetweenContainers.TransportItemTarget target, Level level, PathfinderMob mob, Vec3 pos) {
@@ -483,22 +484,29 @@ index 2a7cda7fbc400a13e7ab71a6a82496068d9c7ae6..7351337a970f502f7f5e9dae4f2a80be
      }
  
      private boolean isAnotherMobInteractingWithTarget(TransportItemsBetweenContainers.TransportItemTarget target, Level level) {
-@@ -513,36 +817,143 @@ public class TransportItemsBetweenContainers extends Behavior<PathfinderMob> {
+@@ -513,36 +818,150 @@ public class TransportItemsBetweenContainers extends Behavior<PathfinderMob> {
      }
  
      private void pickUpItems(PathfinderMob mob, Container container) {
 -        mob.setItemSlot(EquipmentSlot.MAINHAND, pickupItemFromContainer(container));
 +        final int pickupLimit = mob.level() instanceof ServerLevel serverLevel ? this.paperPickupMaxItemsHeld(serverLevel, mob) : TRANSPORTED_ITEM_MAX_STACK_SIZE;
 +
-+        final @Nullable String preferredItemId;
++        @Nullable String preferredItemId = null;
++        boolean stalePreferredCleared = false;
++
 +        if (mob instanceof CopperGolem golem
 +            && mob.level() instanceof ServerLevel serverLevel
 +            && CopperGolemConfig.enabled
 +            && CopperGolemConfig.rememberLastItem
 +            && CopperGolemConfig.selectionStrategy == CopperGolemConfig.SelectionStrategy.LAST_ITEM_THEN_BIGGEST_STACK) {
-+            preferredItemId = golem.paperIsMemoryValid(serverLevel.getGameTime()) ? golem.paperLastItemId() : null;
-+        } else {
-+            preferredItemId = null;
++            final long now = serverLevel.getGameTime();
++            preferredItemId = golem.paperIsMemoryValid(now) ? golem.paperLastItemId() : null;
++
++            if (preferredItemId != null && !preferredItemId.isEmpty() && !paperContainsItemId(container, preferredItemId)) {
++                paperClearLastItemMemory(golem, now);
++                preferredItemId = null;
++                stalePreferredCleared = true;
++            }
 +        }
 +
 +        mob.setItemSlot(EquipmentSlot.MAINHAND, pickupItemFromContainer(container, pickupLimit, preferredItemId));
@@ -511,7 +519,7 @@ index 2a7cda7fbc400a13e7ab71a6a82496068d9c7ae6..7351337a970f502f7f5e9dae4f2a80be
 +
 +            if (CopperGolemConfig.rememberLastItem) {
 +                final ItemStack hand = mob.getMainHandItem();
-+                if (!hand.isEmpty() && !golem.paperIsMemoryValid(now)) {
++                if (!hand.isEmpty() && (stalePreferredCleared || !golem.paperIsMemoryValid(now))) {
 +                    golem.paperSetLastItemId(paperItemId(hand), now, CopperGolemConfig.memoryTtlTicks);
 +                }
 +            }
@@ -639,7 +647,7 @@ index 2a7cda7fbc400a13e7ab71a6a82496068d9c7ae6..7351337a970f502f7f5e9dae4f2a80be
      }
  
      private static ItemStack addItemsToContainer(PathfinderMob mob, Container container) {
-@@ -556,10 +967,10 @@ public class TransportItemsBetweenContainers extends Behavior<PathfinderMob> {
+@@ -556,10 +975,10 @@ public class TransportItemsBetweenContainers extends Behavior<PathfinderMob> {
              }
  
              if (ItemStack.isSameItemSameComponents(itemStack, mainHandItem) && itemStack.getCount() < itemStack.getMaxStackSize()) {
@@ -654,7 +662,7 @@ index 2a7cda7fbc400a13e7ab71a6a82496068d9c7ae6..7351337a970f502f7f5e9dae4f2a80be
                  container.setItem(i, itemStack);
                  if (mainHandItem.isEmpty()) {
                      return ItemStack.EMPTY;
-@@ -587,7 +998,13 @@ public class TransportItemsBetweenContainers extends Behavior<PathfinderMob> {
+@@ -587,7 +1006,13 @@ public class TransportItemsBetweenContainers extends Behavior<PathfinderMob> {
  
      private void enterCooldownAfterNoMatchingTargetFound(PathfinderMob mob) {
          this.stopTargetingCurrentTarget(mob);
