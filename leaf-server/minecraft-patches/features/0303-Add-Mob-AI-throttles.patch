@@ -1,0 +1,154 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: splatage <noj.melville@gmail.com>
+Date: Fri, 13 Mar 2026 13:58:27 +1300
+Subject: [PATCH] Add Mob AI throttles
+
+
+diff --git a/net/minecraft/world/entity/Mob.java b/net/minecraft/world/entity/Mob.java
+index 10045bdd3c9692fb0a56f140b4891c67cf64eeea..1879d72229f31136d6e0e9ca085e00d4053debf9 100644
+--- a/net/minecraft/world/entity/Mob.java
++++ b/net/minecraft/world/entity/Mob.java
+@@ -89,9 +89,12 @@ import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
+ import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
+ import net.minecraft.world.phys.AABB;
+ import net.minecraft.world.phys.Vec3;
++
+ import net.minecraft.world.ticks.ContainerSingleItem;
+ import org.jspecify.annotations.Nullable;
+ 
++import io.splatage.leaf.config.modules.entities.MobAiThrottleConfig;
++
+ // CraftBukkit start
+ import org.bukkit.event.entity.CreatureSpawnEvent;
+ import org.bukkit.event.entity.EntityRemoveEvent;
+@@ -817,6 +820,7 @@ public abstract class Mob extends LivingEntity implements EquipmentUser, Leashab
+         }
+     }
+ 
++
+     @Override
+     protected final void serverAiStep() {
+         this.noActionTime++;
+@@ -829,12 +833,24 @@ public abstract class Mob extends LivingEntity implements EquipmentUser, Leashab
+             return;
+         }
+         // Paper end - Allow nerfed mobs to jump and float
++
++        // Splatage start - Failed-navigation AI throttle
++        if (this.navigation.isFailedNavigationAiThrottleActive(MobAiThrottleConfig.skipDurationTicks)) {
++            if (this.goalFloat != null) {
++                if (this.goalFloat.canUse()) this.goalFloat.tick();
++                this.getJumpControl().tick();
++            }
++            return;
++        }
++        // Splatage end - Failed-navigation AI throttle
++
+         ProfilerFiller profilerFiller = Profiler.get();
+         profilerFiller.push("sensing");
+         this.sensing.tick();
+         profilerFiller.pop();
+-        int i = this.tickCount + this.getId();
+-        if (i % 2 != 0 && this.tickCount > 1) {
++
++        final int i = this.tickCount + this.getId();
++        if (this.tickCount > 1 && i % MobAiThrottleConfig.fullAiStepInterval != 0) {
+             profilerFiller.push("targetSelector");
+             this.targetSelector.tickRunningGoals(false);
+             profilerFiller.pop();
+diff --git a/net/minecraft/world/entity/ai/goal/GoalSelector.java b/net/minecraft/world/entity/ai/goal/GoalSelector.java
+index 0938c1ab06878a62bd734255d1963001db7cea19..bd406e662a4c4df64c66c84bdc9ad58c63ff7a1d 100644
+--- a/net/minecraft/world/entity/ai/goal/GoalSelector.java
++++ b/net/minecraft/world/entity/ai/goal/GoalSelector.java
+@@ -6,6 +6,7 @@ import java.util.EnumSet;
+ import java.util.Map;
+ import java.util.Set;
+ import java.util.function.Predicate;
++import io.splatage.leaf.config.modules.entities.MobAiThrottleConfig;
+ import net.minecraft.util.profiling.Profiler;
+ import net.minecraft.util.profiling.ProfilerFiller;
+ 
+@@ -27,6 +28,7 @@ public class GoalSelector {
+     private static final Goal.Flag[] GOAL_FLAG_VALUES = Goal.Flag.values(); // Paper - remove streams from GoalSelector
+     private final ca.spottedleaf.moonrise.common.set.OptimizedSmallEnumSet<net.minecraft.world.entity.ai.goal.Goal.Flag> goalTypes = new ca.spottedleaf.moonrise.common.set.OptimizedSmallEnumSet<>(Goal.Flag.class); // Paper - remove streams from GoalSelector
+     private int curRate; // Paper - EAR 2
++    private int splatageGoalAiUpdateCounter;
+     private final int[] lockedPriorities = new int[GOAL_FLAG_VALUES.length]; // Leaf - optimize goal selector
+ 
+     public void addGoal(int priority, Goal goal) {
+@@ -135,41 +137,43 @@ public class GoalSelector {
+         profilerFiller.pop();
+         profilerFiller.push("goalUpdate");
+ 
+-        // Leaf start - optimize goal selector
+-        for (int i = 0; i < elemSize; i++) {
+-            final WrappedGoal goal = elements[i];
+-            if (goal.isRunning()) {
+-                continue;
+-            }
+-            final long f = goal.goal.getFlags().getBackingSet();
+-            final int p = goal.getPriority();
+-            if ((disabled & f) != 0L
+-                || (f & mask) != 0L
+-                && ((f & 1L) != 0L && p >= lockedPriorities[0]
+-                || (f & 2L) != 0L && p >= lockedPriorities[1]
+-                || (f & 4L) != 0L && p >= lockedPriorities[2]
+-                || (f & 8L) != 0L && p >= lockedPriorities[3]
+-                || (f & 16L) != 0L && p >= lockedPriorities[4])) {
+-                continue;
+-            } else if (!goal.canUse()) {
+-                continue;
+-            }
+-            for (long iter = f; iter != 0L; iter &= iter - 1) {
+-                final int j = Long.numberOfTrailingZeros(iter);
+-                final Goal.Flag flag = GOAL_FLAG_VALUES[j];
+-                final WrappedGoal locked = lockedFlags.get(flag);
+-                if (locked != null) {
+-                    locked.stop();
++        if (this.splatageGoalAiUpdateCounter++ % MobAiThrottleConfig.goalAiUpdateInterval == 0) {
++            // Leaf start - optimize goal selector
++            for (int i = 0; i < elemSize; i++) {
++                final WrappedGoal goal = elements[i];
++                if (goal.isRunning()) {
++                    continue;
+                 }
+-                lockedFlags.put(flag, goal);
+-                lockedPriorities[j] = goal.isInterruptable()
+-                    ? goal.getPriority()
+-                    : Integer.MIN_VALUE;
+-                mask |= (1L << j);
++                final long f = goal.goal.getFlags().getBackingSet();
++                final int p = goal.getPriority();
++                if ((disabled & f) != 0L
++                    || (f & mask) != 0L
++                    && ((f & 1L) != 0L && p >= lockedPriorities[0]
++                    || (f & 2L) != 0L && p >= lockedPriorities[1]
++                    || (f & 4L) != 0L && p >= lockedPriorities[2]
++                    || (f & 8L) != 0L && p >= lockedPriorities[3]
++                    || (f & 16L) != 0L && p >= lockedPriorities[4])) {
++                    continue;
++                } else if (!goal.canUse()) {
++                    continue;
++                }
++                for (long iter = f; iter != 0L; iter &= iter - 1) {
++                    final int j = Long.numberOfTrailingZeros(iter);
++                    final Goal.Flag flag = GOAL_FLAG_VALUES[j];
++                    final WrappedGoal locked = lockedFlags.get(flag);
++                    if (locked != null) {
++                        locked.stop();
++                    }
++                    lockedFlags.put(flag, goal);
++                    lockedPriorities[j] = goal.isInterruptable()
++                        ? goal.getPriority()
++                        : Integer.MIN_VALUE;
++                    mask |= (1L << j);
++                }
++                goal.start();
+             }
+-            goal.start();
++            // Leaf end - optimize goal selector
+         }
+-        // Leaf end - optimize goal selector
+ 
+         profilerFiller.pop();
+         this.tickRunningGoals(true);
