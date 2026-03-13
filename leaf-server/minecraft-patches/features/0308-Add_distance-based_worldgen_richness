@@ -1,0 +1,116 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: splatage <noj.melville@gmail.com>
+Date: Fri, 13 Mar 2026 12:30:00 +1300
+Subject: [PATCH] Add distance-based worldgen richness
+
+---
+ .../world/level/levelgen/feature/OreFeature.java |  5 +++++
+ .../levelgen/feature/ScatteredOreFeature.java    |  5 +++++
+ .../world/level/levelgen/placement/PlacedFeature.java | 24 ++++++++++++++++++++
+ 3 files changed, 34 insertions(+)
+
+diff --git a/net/minecraft/world/level/levelgen/feature/OreFeature.java b/net/minecraft/world/level/levelgen/feature/OreFeature.java
+--- a/net/minecraft/world/level/levelgen/feature/OreFeature.java
++++ b/net/minecraft/world/level/levelgen/feature/OreFeature.java
+@@
+ package net.minecraft.world.level.levelgen.feature;
+ 
++import io.splatage.leaf.util.WorldgenRichnessHelper;
+ import com.mojang.serialization.Codec;
+ import net.minecraft.core.BlockPos;
+ import net.minecraft.util.Mth;
+ import net.minecraft.util.RandomSource;
+@@
+     public boolean place(FeaturePlaceContext<OreConfiguration> context) {
+         RandomSource randomsource = context.random();
+         BlockPos blockpos = context.origin();
+         WorldGenLevel worldgenlevel = context.level();
+         OreConfiguration oreconfiguration = context.config();
++        // Splatage start - The Wild - distance-based worldgen richness
++        oreconfiguration = WorldgenRichnessHelper.scaleVeinSize(worldgenlevel, blockpos, oreconfiguration);
++        // Splatage end - The Wild - distance-based worldgen richness
+         float f = randomsource.nextFloat() * (float) Math.PI;
+         float f1 = (float) oreconfiguration.size / 8.0F;
+         int i = Mth.ceil(((float) oreconfiguration.size / 16.0F * 2.0F + 1.0F) / 2.0F);
+         double d0 = (double) blockpos.getX() + Math.sin(f) * (double) f1;
+         double d1 = (double) blockpos.getX() - Math.sin(f) * (double) f1;
+diff --git a/net/minecraft/world/level/levelgen/feature/ScatteredOreFeature.java b/net/minecraft/world/level/levelgen/feature/ScatteredOreFeature.java
+--- a/net/minecraft/world/level/levelgen/feature/ScatteredOreFeature.java
++++ b/net/minecraft/world/level/levelgen/feature/ScatteredOreFeature.java
+@@
+ package net.minecraft.world.level.levelgen.feature;
+ 
++import io.splatage.leaf.util.WorldgenRichnessHelper;
+ import com.mojang.serialization.Codec;
+ import net.minecraft.core.BlockPos;
+ import net.minecraft.util.RandomSource;
+ import net.minecraft.world.level.WorldGenLevel;
+@@
+     public boolean place(FeaturePlaceContext<OreConfiguration> context) {
+         WorldGenLevel worldgenlevel = context.level();
+         RandomSource randomsource = context.random();
+         BlockPos blockpos = context.origin();
+         OreConfiguration oreconfiguration = context.config();
++        // Splatage start - The Wild - distance-based worldgen richness
++        oreconfiguration = WorldgenRichnessHelper.scaleVeinSize(worldgenlevel, blockpos, oreconfiguration);
++        // Splatage end - The Wild - distance-based worldgen richness
+         int i = Math.min(randomsource.nextInt(oreconfiguration.size + 1), 7);
+         int j = 0;
+         BlockPos.MutableBlockPos blockpos$mutableblockpos = blockpos.mutable();
+ 
+diff --git a/net/minecraft/world/level/levelgen/placement/PlacedFeature.java b/net/minecraft/world/level/levelgen/placement/PlacedFeature.java
+--- a/net/minecraft/world/level/levelgen/placement/PlacedFeature.java
++++ b/net/minecraft/world/level/levelgen/placement/PlacedFeature.java
+@@
+ package net.minecraft.world.level.levelgen.placement;
+ 
++import io.splatage.leaf.util.WorldgenRichnessHelper;
+ import com.mojang.serialization.Codec;
+ import com.mojang.serialization.DataResult;
+ import java.util.List;
+ import java.util.Optional;
+ import java.util.stream.Stream;
+@@
+     private boolean placeWithContext(PlacementContext context, RandomSource random, BlockPos pos) {
+         ConfiguredFeature<?, ?> configuredfeature = this.feature.value();
+-        Stream<BlockPos> stream = Stream.of(pos);
+-
+-        for (PlacementModifier placementmodifier : this.placement) {
+-            stream = stream.flatMap((blockpos1) -> placementmodifier.getPositions(context, random, blockpos1));
+-        }
+-
+-        MutableBoolean mutableboolean = new MutableBoolean();
+-        stream.forEach((blockpos2) -> {
+-            if (configuredfeature.place(context.getLevel(), context.generator(), random, blockpos2)) {
+-                mutableboolean.setTrue();
+-            }
+-        });
+-        return mutableboolean.isTrue();
++        // Splatage start - The Wild - distance-based worldgen richness
++        final int placementPasses = WorldgenRichnessHelper.resolvePlacementPasses(context.getLevel(), pos, configuredfeature, random);
++        boolean placedAny = false;
++
++        for (int pass = 0; pass < placementPasses; ++pass) {
++            Stream<BlockPos> stream = Stream.of(pos);
++
++            for (PlacementModifier placementmodifier : this.placement) {
++                stream = stream.flatMap((blockpos1) -> placementmodifier.getPositions(context, random, blockpos1));
++            }
++
++            MutableBoolean mutableboolean = new MutableBoolean();
++            stream.forEach((blockpos2) -> {
++                if (configuredfeature.place(context.getLevel(), context.generator(), random, blockpos2)) {
++                    mutableboolean.setTrue();
++                }
++            });
++            if (mutableboolean.isTrue()) {
++                placedAny = true;
++            }
++        }
++
++        return placedAny;
++        // Splatage end - The Wild - distance-based worldgen richness
+     }
+ }
+-- 
+2.43.0
