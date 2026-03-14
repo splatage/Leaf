@@ -13,30 +13,28 @@ public final class OreRichness extends SplatageConfigModules {
 
     public static boolean enabled = true;
 
+    public static int centerX = 0;
+    public static int centerZ = 0;
+
     public static double frequencyStartPercent = -1.0D;
     public static double frequencyMaxPercent = -1.0D;
     public static int frequencyDistanceToMax = -1;
 
-    public static double veinSizeStartPercent = -1.0D;
-    public static double veinSizeMaxPercent = -1.0D;
-    public static int veinSizeDistanceToMax = -1;
-
     public static Set<String> blacklist = Collections.emptySet();
 
     public static boolean frequencyEnabled = false;
-    public static boolean veinSizeEnabled = false;
-    public static double frequencyDistanceToMaxChunks = -1.0D;
+    public static double centerChunkX = 0.0D;
+    public static double centerChunkZ = 0.0D;
     public static double frequencyDistanceToMaxChunksSq = -1.0D;
-    public static double veinSizeDistanceToMaxChunks = -1.0D;
-    public static double veinSizeDistanceToMaxChunksSq = -1.0D;
 
     @Override
     public void onLoaded() {
         config.addComment(BASE_PATH, """
             Distance-based ore richness tuning for The Wild.
             Percent values are relative to vanilla generation where 100.0 means vanilla.
-            -1 disables a subsystem. Blacklisted ores remain fully vanilla.
+            -1 disables frequency scaling. Blacklisted ores remain fully vanilla.
             Distance values are configured in blocks and resolved internally in chunk-space.
+            Richness is measured from configurable center-x and center-z block coordinates.
             Blacklist entries match ore output block keys such as minecraft:coal_ore.
             """);
 
@@ -46,10 +44,22 @@ public final class OreRichness extends SplatageConfigModules {
             "Enable The Wild ore richness system."
         );
 
+        centerX = config.getInt(
+            BASE_PATH + ".center-x",
+            centerX,
+            "Block X coordinate used as the center of Wild richness scaling."
+        );
+
+        centerZ = config.getInt(
+            BASE_PATH + ".center-z",
+            centerZ,
+            "Block Z coordinate used as the center of Wild richness scaling."
+        );
+
         frequencyStartPercent = config.getDouble(
             BASE_PATH + ".frequency.start-percent",
             frequencyStartPercent,
-            "Ore frequency percent at spawn. 100.0 means vanilla. -1 disables frequency scaling."
+            "Ore frequency percent at the configured center. 100.0 means vanilla. -1 disables frequency scaling."
         );
 
         frequencyMaxPercent = config.getDouble(
@@ -61,25 +71,7 @@ public final class OreRichness extends SplatageConfigModules {
         frequencyDistanceToMax = config.getInt(
             BASE_PATH + ".frequency.distance-to-max",
             frequencyDistanceToMax,
-            "Distance in blocks where frequency reaches max-percent. -1 disables frequency scaling."
-        );
-
-        veinSizeStartPercent = config.getDouble(
-            BASE_PATH + ".vein-size.start-percent",
-            veinSizeStartPercent,
-            "Ore vein size percent at spawn. 100.0 means vanilla. -1 disables vein-size scaling."
-        );
-
-        veinSizeMaxPercent = config.getDouble(
-            BASE_PATH + ".vein-size.max-percent",
-            veinSizeMaxPercent,
-            "Ore vein size percent at or beyond distance-to-max. 100.0 means vanilla. -1 disables vein-size scaling."
-        );
-
-        veinSizeDistanceToMax = config.getInt(
-            BASE_PATH + ".vein-size.distance-to-max",
-            veinSizeDistanceToMax,
-            "Distance in blocks where vein size reaches max-percent. -1 disables vein-size scaling."
+            "Distance in blocks from the configured center where frequency reaches max-percent. -1 disables frequency scaling."
         );
 
         blacklist = parseBlockKeySet(
@@ -95,15 +87,9 @@ public final class OreRichness extends SplatageConfigModules {
             && frequencyMaxPercent >= 0.0D
             && frequencyDistanceToMax > 0;
 
-        veinSizeEnabled = enabled
-            && veinSizeStartPercent >= 0.0D
-            && veinSizeMaxPercent >= 0.0D
-            && veinSizeDistanceToMax > 0;
-
-        frequencyDistanceToMaxChunks = frequencyEnabled ? frequencyDistanceToMax / 16.0D : -1.0D;
-        frequencyDistanceToMaxChunksSq = frequencyEnabled ? frequencyDistanceToMaxChunks * frequencyDistanceToMaxChunks : -1.0D;
-        veinSizeDistanceToMaxChunks = veinSizeEnabled ? veinSizeDistanceToMax / 16.0D : -1.0D;
-        veinSizeDistanceToMaxChunksSq = veinSizeEnabled ? veinSizeDistanceToMaxChunks * veinSizeDistanceToMaxChunks : -1.0D;
+        centerChunkX = centerX / 16.0D;
+        centerChunkZ = centerZ / 16.0D;
+        frequencyDistanceToMaxChunksSq = frequencyEnabled ? square(frequencyDistanceToMax / 16.0D) : -1.0D;
     }
 
     private static Set<String> parseBlockKeySet(final List<String> raw) {
@@ -123,5 +109,9 @@ public final class OreRichness extends SplatageConfigModules {
         }
 
         return Collections.unmodifiableSet(values);
+    }
+
+    private static double square(final double value) {
+        return value * value;
     }
 }

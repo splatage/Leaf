@@ -1,5 +1,6 @@
 package io.splatage.leaf.util;
 
+import io.splatage.leaf.config.modules.worldgen.OreRichness;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
@@ -14,13 +15,10 @@ public final class WildScaling {
             return 0.0D;
         }
 
-        final BlockPos spawn = level.getSharedSpawnPos();
-        final double spawnChunkX = spawn.getX() / 16.0D;
-        final double spawnChunkZ = spawn.getZ() / 16.0D;
         final double chunkCenterX = chunkPos.x + 0.5D;
         final double chunkCenterZ = chunkPos.z + 0.5D;
-        final double dx = chunkCenterX - spawnChunkX;
-        final double dz = chunkCenterZ - spawnChunkZ;
+        final double dx = chunkCenterX - OreRichness.centerChunkX;
+        final double dz = chunkCenterZ - OreRichness.centerChunkZ;
         final double chunkDistanceSq = dx * dx + dz * dz;
 
         if (chunkDistanceSq <= 0.0D) {
@@ -39,9 +37,8 @@ public final class WildScaling {
             return 0.0D;
         }
 
-        final BlockPos spawn = level.getSharedSpawnPos();
-        final double dx = origin.getX() - spawn.getX();
-        final double dz = origin.getZ() - spawn.getZ();
+        final double dx = origin.getX() - OreRichness.centerX;
+        final double dz = origin.getZ() - OreRichness.centerZ;
         final double distance = Math.sqrt(dx * dx + dz * dz);
 
         if (distance <= 0.0D) {
