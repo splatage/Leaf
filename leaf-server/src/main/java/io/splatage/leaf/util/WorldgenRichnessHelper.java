@@ -1,16 +1,16 @@
 package io.splatage.leaf.util;
 
 import io.splatage.leaf.config.modules.worldgen.OreRichness;
-import java.util.List;
-import java.util.Locale;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.WorldGenRegion;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
-import net.minecraft.world.level.ServerLevelAccessor;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.WorldGenLevel;
 import net.minecraft.world.level.levelgen.feature.ConfiguredFeature;
-import net.minecraft.world.level.levelgen.feature.Feature;
 import net.minecraft.world.level.levelgen.feature.configurations.OreConfiguration;
 
 public final class WorldgenRichnessHelper {
@@ -18,126 +18,109 @@ public final class WorldgenRichnessHelper {
     private WorldgenRichnessHelper() {
     }
 
-    public static int resolvePlacementPasses(
-        final ServerLevelAccessor level,
-        final BlockPos origin,
+    public static double resolveRegionFrequencyPercent(final ServerLevel level, final ChunkPos center) {
+        if (!OreRichness.frequencyEnabled) {
+            return 100.0D;
+        }
+
+        final double factor = WildScaling.getChunkDistanceFactor(level, center, OreRichness.frequencyDistanceToMaxChunksSq);
+        return WildScaling.lerpPercent(factor, OreRichness.frequencyStartPercent, OreRichness.frequencyMaxPercent);
+    }
+
+    public static double resolveRegionVeinSizePercent(final ServerLevel level, final ChunkPos center) {
+        if (!OreRichness.veinSizeEnabled) {
+            return 100.0D;
+        }
+
+        final double factor = WildScaling.getChunkDistanceFactor(level, center, OreRichness.veinSizeDistanceToMaxChunksSq);
+        return WildScaling.lerpPercent(factor, OreRichness.veinSizeStartPercent, OreRichness.veinSizeMaxPercent);
+    }
+
+    public static int getPlacementRepeats(
+        final WorldGenLevel level,
         final ConfiguredFeature<?, ?> configuredFeature,
+        final BlockPos origin,
         final RandomSource random
     ) {
-        final OreConfiguration oreConfiguration = getParticipatingOreConfiguration(configuredFeature);
-        if (oreConfiguration == null) {
+        if (!(configuredFeature.config() instanceof OreConfiguration oreConfiguration)) {
             return 1;
         }
 
-        final double multiplier = chanceMultiplier(level, origin, oreConfiguration);
-        int passes = Math.max(1, Mth.floor(multiplier));
-        final double fractional = multiplier - (double) passes;
-        if (fractional > 0.0D && random.nextDouble() < fractional) {
-            ++passes;
+        if (isBlacklisted(oreConfiguration)) {
+            return 1;
         }
-        return passes;
+
+        final double percent = getFrequencyPercent(level, origin);
+        return percentToRepeats(percent, random);
     }
 
-    public static OreConfiguration scaleVeinSize(
-        final ServerLevelAccessor level,
+    public static int getScaledOreSize(
+        final WorldGenLevel level,
+        final OreConfiguration config,
         final BlockPos origin,
-        final OreConfiguration oreConfiguration
+        final RandomSource random
     ) {
-        if (!participates(oreConfiguration)) {
-            return oreConfiguration;
+        if (isBlacklisted(config)) {
+            return Math.max(1, config.size);
         }
 
-        final double multiplier = veinSizeMultiplier(level, origin, oreConfiguration);
-        final int scaledSize = WildScaling.scaleInt(
-            oreConfiguration.size,
-            multiplier,
-            1,
-            Math.max(1, OreRichness.maxGeneratedVeinSize)
-        );
-
-        if (scaledSize == oreConfiguration.size) {
-            return oreConfiguration;
-        }
-
-        return new OreConfiguration(oreConfiguration.targetStates, scaledSize, oreConfiguration.discardChanceOnAirExposure);
+        final double percent = getVeinSizePercent(level, origin);
+        return percentToScaledSize(config.size, percent, random);
     }
 
-    public static boolean participates(final OreConfiguration oreConfiguration) {
-        if (!OreRichness.enabled || oreConfiguration == null) {
+    private static double getFrequencyPercent(final WorldGenLevel level, final BlockPos origin) {
+        if (!OreRichness.frequencyEnabled) {
+            return 100.0D;
+        }
+
+        if (level instanceof WorldGenRegion worldGenRegion) {
+            return worldGenRegion.splatage$getOreFrequencyPercent();
+        }
+
+        final double factor = WildScaling.getBlockDistanceFactor(level.getLevel(), origin, OreRichness.frequencyDistanceToMax);
+        return WildScaling.lerpPercent(factor, OreRichness.frequencyStartPercent, OreRichness.frequencyMaxPercent);
+    }
+
+    private static double getVeinSizePercent(final WorldGenLevel level, final BlockPos origin) {
+        if (!OreRichness.veinSizeEnabled) {
+            return 100.0D;
+        }
+
+        if (level instanceof WorldGenRegion worldGenRegion) {
+            return worldGenRegion.splatage$getOreVeinSizePercent();
+        }
+
+        final double factor = WildScaling.getBlockDistanceFactor(level.getLevel(), origin, OreRichness.veinSizeDistanceToMax);
+        return WildScaling.lerpPercent(factor, OreRichness.veinSizeStartPercent, OreRichness.veinSizeMaxPercent);
+    }
+
+    private static int percentToRepeats(final double percent, final RandomSource random) {
+        final double multiplier = Math.max(0.0D, percent / 100.0D);
+        final int whole = Mth.floor(multiplier);
+        final double fractional = multiplier - whole;
+        return whole + (random.nextDouble() < fractional ? 1 : 0);
+    }
+
+    private static int percentToScaledSize(final int originalSize, final double percent, final RandomSource random) {
+        final double scaled = Math.max(1.0D, originalSize * Math.max(0.0D, percent / 100.0D));
+        final int whole = Mth.floor(scaled);
+        final double fractional = scaled - whole;
+        return Math.max(1, whole + (random.nextDouble() < fractional ? 1 : 0));
+    }
+
+    private static boolean isBlacklisted(final OreConfiguration config) {
+        final Set<String> blacklist = OreRichness.blacklist;
+        if (blacklist.isEmpty()) {
             return false;
         }
 
-        final List<OreConfiguration.TargetBlockState> targets = oreConfiguration.targetStates;
-        if (targets.isEmpty()) {
-            return false;
-        }
-
-        boolean included = OreRichness.includedTargetBlocks.isEmpty();
-        for (final OreConfiguration.TargetBlockState target : targets) {
-            final ResourceLocation key = BuiltInRegistries.BLOCK.getKey(target.state.getBlock());
-            final String blockId = key.toString().toLowerCase(Locale.ROOT);
-
-            if (OreRichness.excludedTargetBlocks.contains(blockId)) {
-                return false;
-            }
-            if (!included && OreRichness.includedTargetBlocks.contains(blockId)) {
-                included = true;
+        for (final OreConfiguration.TargetBlockState targetBlockState : config.targetStates) {
+            final String blockKey = BuiltInRegistries.BLOCK.getKey(targetBlockState.state.getBlock()).toString();
+            if (blacklist.contains(blockKey)) {
+                return true;
             }
         }
 
-        return included;
-    }
-
-    private static OreConfiguration getParticipatingOreConfiguration(final ConfiguredFeature<?, ?> configuredFeature) {
-        if (!OreRichness.enabled || configuredFeature == null) {
-            return null;
-        }
-
-        if (!(configuredFeature.config() instanceof OreConfiguration oreConfiguration)) {
-            return null;
-        }
-
-        final Feature<?> feature = configuredFeature.feature();
-        if (feature != Feature.ORE && feature != Feature.SCATTERED_ORE) {
-            return null;
-        }
-
-        return participates(oreConfiguration) ? oreConfiguration : null;
-    }
-
-    private static double chanceMultiplier(
-        final ServerLevelAccessor level,
-        final BlockPos origin,
-        final OreConfiguration oreConfiguration
-    ) {
-        if (!participates(oreConfiguration)) {
-            return 1.0D;
-        }
-
-        final double factor = WildScaling.horizontalFactor(
-            level,
-            origin.getX(),
-            origin.getZ(),
-            Math.max(1, OreRichness.chanceDistanceToMax)
-        );
-        return WildScaling.multiplier(factor, OreRichness.maxChanceMultiplier, OreRichness.chanceCurve);
-    }
-
-    private static double veinSizeMultiplier(
-        final ServerLevelAccessor level,
-        final BlockPos origin,
-        final OreConfiguration oreConfiguration
-    ) {
-        if (!participates(oreConfiguration)) {
-            return 1.0D;
-        }
-
-        final double factor = WildScaling.horizontalFactor(
-            level,
-            origin.getX(),
-            origin.getZ(),
-            Math.max(1, OreRichness.veinSizeDistanceToMax)
-        );
-        return WildScaling.multiplier(factor, OreRichness.maxVeinSizeMultiplier, OreRichness.veinSizeCurve);
+        return false;
     }
 }
