@@ -1,0 +1,186 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: splatage <noj.melville@gmail.com>
+Date: Sat, 14 Mar 2026 22:37:11 +1300
+Subject: [PATCH] Add Eltra mode
+
+
+diff --git a/ca/spottedleaf/moonrise/patches/chunk_system/player/RegionizedPlayerChunkLoader.java b/ca/spottedleaf/moonrise/patches/chunk_system/player/RegionizedPlayerChunkLoader.java
+index 3ca08ab3b57c278748ad58ab03751f25ab6202e5..b1b06d014f56fcbcdaad277835c3473a76c9b0ff 100644
+--- a/ca/spottedleaf/moonrise/patches/chunk_system/player/RegionizedPlayerChunkLoader.java
++++ b/ca/spottedleaf/moonrise/patches/chunk_system/player/RegionizedPlayerChunkLoader.java
+@@ -3,6 +3,7 @@ package ca.spottedleaf.moonrise.patches.chunk_system.player;
+ import ca.spottedleaf.concurrentutil.util.ConcurrentUtil;
+ import ca.spottedleaf.concurrentutil.util.Priority;
+ import ca.spottedleaf.moonrise.common.PlatformHooks;
++import io.splatage.leaf.config.modules.entities.ElytraTransit;
+ import ca.spottedleaf.moonrise.common.misc.AllocatingRateLimiter;
+ import ca.spottedleaf.moonrise.common.misc.SingleUserAreaMap;
+ import ca.spottedleaf.moonrise.common.util.CoordinateUtils;
+@@ -326,6 +327,10 @@ public final class RegionizedPlayerChunkLoader {
+ 
+         private static final long MAX_RATE = 10_000L;
+ 
++        private static boolean isElytraTransit(final ServerPlayer player) {
++            return ElytraTransit.enabled && player.leaf$isElytraTransitMode();
++        }
++
+         private final ServerPlayer player;
+         private final ServerLevel world;
+ 
+@@ -879,15 +884,21 @@ public final class RegionizedPlayerChunkLoader {
+             final int chunkX = this.player.chunkPosition().x;
+             final int chunkZ = this.player.chunkPosition().z;
+ 
+-            final int tickViewDistance = getTickDistance(
++            int tickViewDistance = getTickDistance(
+                     playerDistances.tickViewDistance, worldDistances.tickViewDistance,
+                     playerDistances.loadViewDistance, worldDistances.loadViewDistance
+             );
+             // load view cannot be less-than tick view + 1
+-            final int loadViewDistance = getLoadViewDistance(tickViewDistance, playerDistances.loadViewDistance, worldDistances.loadViewDistance);
++            int loadViewDistance = getLoadViewDistance(tickViewDistance, playerDistances.loadViewDistance, worldDistances.loadViewDistance);
+             // send view cannot be greater-than load view
+             final int clientViewDistance = getClientViewDistance(this.player);
+-            final int sendViewDistance = getSendViewDistance(loadViewDistance, clientViewDistance, playerDistances.sendViewDistance, worldDistances.sendViewDistance);
++            int sendViewDistance = getSendViewDistance(loadViewDistance, clientViewDistance, playerDistances.sendViewDistance, worldDistances.sendViewDistance);
++
++            if (isElytraTransit(this.player)) {
++                tickViewDistance = Math.min(tickViewDistance, ElytraTransit.transitTickViewDistance);
++                loadViewDistance = Math.min(loadViewDistance, ElytraTransit.transitLoadViewDistance);
++                sendViewDistance = Math.min(sendViewDistance, ElytraTransit.transitSendViewDistance);
++            }
+ 
+             // send view distances
+             this.player.connection.send(this.updateClientChunkRadius(sendViewDistance));
+@@ -932,18 +943,26 @@ public final class RegionizedPlayerChunkLoader {
+             final ViewDistances playerDistances = ((ChunkSystemServerPlayer)this.player).moonrise$getViewDistanceHolder().getViewDistances();
+             final ViewDistances worldDistances = ((ChunkSystemServerLevel)this.world).moonrise$getViewDistanceHolder().getViewDistances();
+ 
+-            final int tickViewDistance = getTickDistance(
+-                    playerDistances.tickViewDistance, worldDistances.tickViewDistance,
+-                    playerDistances.loadViewDistance, worldDistances.loadViewDistance
++            int tickViewDistance = getTickDistance(
++                playerDistances.tickViewDistance, worldDistances.tickViewDistance,
++                playerDistances.loadViewDistance, worldDistances.loadViewDistance
+             );
+             // load view cannot be less-than tick view + 1
+-            final int loadViewDistance = getLoadViewDistance(tickViewDistance, playerDistances.loadViewDistance, worldDistances.loadViewDistance);
++            int loadViewDistance = getLoadViewDistance(tickViewDistance, playerDistances.loadViewDistance, worldDistances.loadViewDistance);
+             // send view cannot be greater-than load view
+             final int clientViewDistance = getClientViewDistance(this.player);
+-            final int sendViewDistance = getSendViewDistance(loadViewDistance, clientViewDistance, playerDistances.sendViewDistance, worldDistances.sendViewDistance);
++            int sendViewDistance = getSendViewDistance(loadViewDistance, clientViewDistance, playerDistances.sendViewDistance, worldDistances.sendViewDistance);
++
++            final boolean elytraTransit = isElytraTransit(this.player);
++            if (elytraTransit) {
++                tickViewDistance = Math.min(tickViewDistance, ElytraTransit.transitTickViewDistance);
++                loadViewDistance = Math.min(loadViewDistance, ElytraTransit.transitLoadViewDistance);
++                sendViewDistance = Math.min(sendViewDistance, ElytraTransit.transitSendViewDistance);
++            }
+ 
+             final ChunkPos playerPos = this.player.chunkPosition();
+-            final boolean canGenerateChunks = this.canPlayerGenerateChunks();
++            final boolean canGenerateChunks = this.canPlayerGenerateChunks() && !elytraTransit;
++
+             final int currentChunkX = playerPos.x;
+             final int currentChunkZ = playerPos.z;
+ 
+diff --git a/net/minecraft/world/entity/LivingEntity.java b/net/minecraft/world/entity/LivingEntity.java
+index 0ad86184b239b43fde986ba8ccd94d2dd82aa628..53e59fd203a91f9c02b6be18a85b78b9efc4c2f9 100644
+--- a/net/minecraft/world/entity/LivingEntity.java
++++ b/net/minecraft/world/entity/LivingEntity.java
+@@ -4025,6 +4025,10 @@ public abstract class LivingEntity extends Entity implements Attackable, Waypoin
+         return this.jumping;
+     }
+ 
++    private boolean leaf$shouldSuppressElytraWear() {
++        return this instanceof Player player && player.leaf$isElytraTransitMode();
++    }
++
+     protected void updateFallFlying() {
+         this.checkFallDistanceAccumulation();
+         if (!this.level().isClientSide()) {
+@@ -4038,7 +4042,7 @@ public abstract class LivingEntity extends Entity implements Attackable, Waypoin
+             int i = this.fallFlyTicks + 1;
+             if (i % 10 == 0) {
+                 int i1 = i / 10;
+-                if (i1 % 2 == 0) {
++                if (i1 % 2 == 0 && !this.leaf$shouldSuppressElytraWear()) {
+                     List<EquipmentSlot> list = EquipmentSlot.VALUES
+                         .stream()
+                         .filter(equipmentSlot1 -> canGlideUsing(this.getItemBySlot(equipmentSlot1), equipmentSlot1))
+diff --git a/net/minecraft/world/entity/player/Player.java b/net/minecraft/world/entity/player/Player.java
+index e56fd037860c4f38862e01f7ab9972a7d7a132b2..84f4263c3b162d36eb372606f89b34a9581a666d 100644
+--- a/net/minecraft/world/entity/player/Player.java
++++ b/net/minecraft/world/entity/player/Player.java
+@@ -3,6 +3,7 @@ package net.minecraft.world.entity.player;
+ import com.google.common.base.MoreObjects;
+ import com.google.common.collect.ImmutableList;
+ import com.google.common.collect.Lists;
++import io.splatage.leaf.config.modules.entities.ElytraTransit;
+ import com.google.common.math.IntMath;
+ import com.mojang.authlib.GameProfile;
+ import com.mojang.datafixers.util.Either;
+@@ -1576,6 +1577,14 @@ public abstract class Player extends Avatar implements ContainerUser {
+         }
+     }
+ 
++    public boolean leaf$isElytraGlideSuppressedFromNaturalSpawning() {
++        return ElytraTransit.enabled && this.isFallFlying();
++    }
++
++    public boolean leaf$isElytraTransitMode() {
++        return ElytraTransit.enabled && this.isFallFlying() && this.getY() > ElytraTransit.transitThresholdY;
++    }
++
+     @Override
+     public boolean canGlide() {
+         return !this.abilities.flying && super.canGlide();
+diff --git a/net/minecraft/world/level/NaturalSpawner.java b/net/minecraft/world/level/NaturalSpawner.java
+index dfd408920ac6055d298523feb23d62c86e5bf3c6..27d5095b7e2dd5d16bc7aca4a96c26d869789fe9 100644
+--- a/net/minecraft/world/level/NaturalSpawner.java
++++ b/net/minecraft/world/level/NaturalSpawner.java
+@@ -122,6 +122,10 @@ public final class NaturalSpawner {
+         return chunk.getNoiseBiome(QuartPos.fromBlock(pos.getX()), QuartPos.fromBlock(pos.getY()), QuartPos.fromBlock(pos.getZ())).value();
+     }
+ 
++    private static boolean isNaturalSpawnParticipant(@Nullable Player player) {
++        return player != null && !player.leaf$isElytraGlideSuppressedFromNaturalSpawning();
++    }
++
+     // CraftBukkit start - add server
+     public static List<MobCategory> getFilteredSpawningCategories(
+         NaturalSpawner.SpawnState spawnState, boolean spawnFriendlies, boolean spawnEnemies, boolean spawnPassives, ServerLevel level
+@@ -208,12 +212,17 @@ public final class NaturalSpawner {
+                 if (inRange != null) {
+                     final net.minecraft.server.level.ServerPlayer[] backingSet = inRange.getRawDataUnchecked();
+                     for (int k = 0, len = inRange.size(); k < len; k++) {
+-                        minDiff = Math.min(limit - level.getChunkSource().chunkMap.getMobCountNear(backingSet[k], mobCategory), minDiff);
++                        final net.minecraft.server.level.ServerPlayer nearbyPlayer = backingSet[k];
++                        if (!NaturalSpawner.isNaturalSpawnParticipant(nearbyPlayer)) {
++                            continue;
++                        }
++                        minDiff = Math.min(limit - level.getChunkSource().chunkMap.getMobCountNear(nearbyPlayer, mobCategory), minDiff);
+                     }
+                 }
+ 
+                 maxSpawns = (minDiff == Integer.MAX_VALUE) ? 0 : minDiff;
+                 canSpawn = maxSpawns > 0;
++
+                 } else { canSpawn = false; } // Paper PR - throttle failed spawn attempts
+             } else {
+                 canSpawn = spawnState.canSpawnForCategoryLocal(mobCategory, chunk.getPos());
+@@ -360,7 +369,12 @@ public final class NaturalSpawner {
+                     mutableBlockPos.set(x, y, z);
+                     double d = x + 0.5;
+                     double d1 = z + 0.5;
+-                    Player nearestPlayer = level.getNearestPlayer(d, y, d1, -1.0, level.purpurConfig.mobSpawningIgnoreCreativePlayers); // Purpur - mob spawning option to ignore creative players
++                    final java.util.function.Predicate<Entity> nearestPlayerPredicate =
++                        (level.purpurConfig.mobSpawningIgnoreCreativePlayers
++                            ? net.minecraft.world.entity.EntitySelector.NO_CREATIVE_OR_SPECTATOR
++                            : net.minecraft.world.entity.EntitySelector.NO_SPECTATORS)
++                        .and(entity -> !((Player)entity).leaf$isElytraGlideSuppressedFromNaturalSpawning());
++                    Player nearestPlayer = level.getNearestPlayer(d, y, d1, -1.0, nearestPlayerPredicate);
+                     if (nearestPlayer != null) {
+                         double d2 = nearestPlayer.distanceToSqr(d, y, d1);
+                         if ((ChunkPos.asLong(mutableBlockPos) == chunk.coordinateKey || level.isLoadedAndInBounds(mutableBlockPos)) && isRightDistanceToPlayerAndSpawnPoint(level, chunk, mutableBlockPos, d2)) { // Paper - don't load chunks for mob spawn // Leaf - optimize mob spawning
