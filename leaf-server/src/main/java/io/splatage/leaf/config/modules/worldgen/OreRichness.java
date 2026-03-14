@@ -1,7 +1,7 @@
 package io.splatage.leaf.config.modules.worldgen;
 
 import io.splatage.leaf.config.SplatageConfigModules;
-import io.splatage.leaf.util.WildScaling;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -11,123 +11,117 @@ public final class OreRichness extends SplatageConfigModules {
 
     private static final String BASE_PATH = "worldgen.ore-richness";
 
-    public static boolean enabled = false;
+    public static boolean enabled = true;
 
-    public static double maxChanceMultiplier = 1.0D;
-    public static int chanceDistanceToMax = 10000;
-    public static WildScaling.ScalingCurve chanceCurve = WildScaling.ScalingCurve.SMOOTHSTEP;
+    public static double frequencyStartPercent = -1.0D;
+    public static double frequencyMaxPercent = -1.0D;
+    public static int frequencyDistanceToMax = -1;
 
-    public static double maxVeinSizeMultiplier = 1.0D;
-    public static int veinSizeDistanceToMax = 10000;
-    public static WildScaling.ScalingCurve veinSizeCurve = WildScaling.ScalingCurve.SMOOTHSTEP;
+    public static double veinSizeStartPercent = -1.0D;
+    public static double veinSizeMaxPercent = -1.0D;
+    public static int veinSizeDistanceToMax = -1;
 
-    public static int maxGeneratedVeinSize = 64;
+    public static Set<String> blacklist = Collections.emptySet();
 
-    public static final Set<String> includedTargetBlocks = new LinkedHashSet<>();
-    public static final Set<String> excludedTargetBlocks = new LinkedHashSet<>();
+    public static boolean frequencyEnabled = false;
+    public static boolean veinSizeEnabled = false;
+    public static double frequencyDistanceToMaxChunks = -1.0D;
+    public static double frequencyDistanceToMaxChunksSq = -1.0D;
+    public static double veinSizeDistanceToMaxChunks = -1.0D;
+    public static double veinSizeDistanceToMaxChunksSq = -1.0D;
 
     @Override
     public void onLoaded() {
-        config.addComment(
-            BASE_PATH,
-            "Distance-based ore richness for The Wild. Chance and vein-size scaling are controlled independently and are both anchored to world spawn."
-        );
+        config.addComment(BASE_PATH, """
+            Distance-based ore richness tuning for The Wild.
+            Percent values are relative to vanilla generation where 100.0 means vanilla.
+            -1 disables a subsystem. Blacklisted ores remain fully vanilla.
+            Distance values are configured in blocks and resolved internally in chunk-space.
+            Blacklist entries match ore output block keys such as minecraft:coal_ore.
+            """);
 
         enabled = config.getBoolean(
             BASE_PATH + ".enabled",
             enabled,
-            "Enable distance-based ore richness scaling."
+            "Enable The Wild ore richness system."
         );
 
-        maxChanceMultiplier = Math.max(
-            1.0D,
-            config.getDouble(
-                BASE_PATH + ".chance.max-multiplier",
-                maxChanceMultiplier,
-                "Maximum placement-pass multiplier for participating ore features. 1.0 keeps vanilla behavior."
-            )
-        );
-        chanceDistanceToMax = Math.max(
-            1,
-            config.getInt(
-                BASE_PATH + ".chance.distance-to-max",
-                chanceDistanceToMax,
-                "Horizontal distance from world spawn where chance scaling reaches its configured maximum."
-            )
-        );
-        chanceCurve = WildScaling.ScalingCurve.fromConfig(
-            config.getString(
-                BASE_PATH + ".chance.curve",
-                chanceCurve.configKey(),
-                "Curve for chance scaling. Supported: linear, smoothstep, ease_in_quad, ease_out_quad."
-            ),
-            chanceCurve
+        frequencyStartPercent = config.getDouble(
+            BASE_PATH + ".frequency.start-percent",
+            frequencyStartPercent,
+            "Ore frequency percent at spawn. 100.0 means vanilla. -1 disables frequency scaling."
         );
 
-        maxVeinSizeMultiplier = Math.max(
-            1.0D,
-            config.getDouble(
-                BASE_PATH + ".vein-size.max-multiplier",
-                maxVeinSizeMultiplier,
-                "Maximum vein-size multiplier for participating ore features. 1.0 keeps vanilla behavior."
-            )
-        );
-        veinSizeDistanceToMax = Math.max(
-            1,
-            config.getInt(
-                BASE_PATH + ".vein-size.distance-to-max",
-                veinSizeDistanceToMax,
-                "Horizontal distance from world spawn where vein-size scaling reaches its configured maximum."
-            )
-        );
-        veinSizeCurve = WildScaling.ScalingCurve.fromConfig(
-            config.getString(
-                BASE_PATH + ".vein-size.curve",
-                veinSizeCurve.configKey(),
-                "Curve for vein-size scaling. Supported: linear, smoothstep, ease_in_quad, ease_out_quad."
-            ),
-            veinSizeCurve
+        frequencyMaxPercent = config.getDouble(
+            BASE_PATH + ".frequency.max-percent",
+            frequencyMaxPercent,
+            "Ore frequency percent at or beyond distance-to-max. 100.0 means vanilla. -1 disables frequency scaling."
         );
 
-        maxGeneratedVeinSize = Math.max(
-            1,
-            config.getInt(
-                BASE_PATH + ".max-generated-vein-size",
-                maxGeneratedVeinSize,
-                "Hard safety cap applied after vein-size scaling."
-            )
+        frequencyDistanceToMax = config.getInt(
+            BASE_PATH + ".frequency.distance-to-max",
+            frequencyDistanceToMax,
+            "Distance in blocks where frequency reaches max-percent. -1 disables frequency scaling."
         );
 
-        includedTargetBlocks.clear();
-        includedTargetBlocks.addAll(normalize(
+        veinSizeStartPercent = config.getDouble(
+            BASE_PATH + ".vein-size.start-percent",
+            veinSizeStartPercent,
+            "Ore vein size percent at spawn. 100.0 means vanilla. -1 disables vein-size scaling."
+        );
+
+        veinSizeMaxPercent = config.getDouble(
+            BASE_PATH + ".vein-size.max-percent",
+            veinSizeMaxPercent,
+            "Ore vein size percent at or beyond distance-to-max. 100.0 means vanilla. -1 disables vein-size scaling."
+        );
+
+        veinSizeDistanceToMax = config.getInt(
+            BASE_PATH + ".vein-size.distance-to-max",
+            veinSizeDistanceToMax,
+            "Distance in blocks where vein size reaches max-percent. -1 disables vein-size scaling."
+        );
+
+        blacklist = parseBlockKeySet(
             config.getList(
-                BASE_PATH + ".included-target-blocks",
+                BASE_PATH + ".blacklist",
                 List.of(),
-                "Optional allow-list of target output blocks. Leave empty to allow all target blocks except excluded ones. Example: [minecraft:diamond_ore, minecraft:deepslate_diamond_ore]"
+                "Ores excluded from Wild richness scaling and left at vanilla generation."
             )
-        ));
+        );
 
-        excludedTargetBlocks.clear();
-        excludedTargetBlocks.addAll(normalize(
-            config.getList(
-                BASE_PATH + ".excluded-target-blocks",
-                List.of(),
-                "Optional block exclusions matched against OreConfiguration target output blocks. Example: [minecraft:coal_ore, minecraft:deepslate_coal_ore]"
-            )
-        ));
+        frequencyEnabled = enabled
+            && frequencyStartPercent >= 0.0D
+            && frequencyMaxPercent >= 0.0D
+            && frequencyDistanceToMax > 0;
+
+        veinSizeEnabled = enabled
+            && veinSizeStartPercent >= 0.0D
+            && veinSizeMaxPercent >= 0.0D
+            && veinSizeDistanceToMax > 0;
+
+        frequencyDistanceToMaxChunks = frequencyEnabled ? frequencyDistanceToMax / 16.0D : -1.0D;
+        frequencyDistanceToMaxChunksSq = frequencyEnabled ? frequencyDistanceToMaxChunks * frequencyDistanceToMaxChunks : -1.0D;
+        veinSizeDistanceToMaxChunks = veinSizeEnabled ? veinSizeDistanceToMax / 16.0D : -1.0D;
+        veinSizeDistanceToMaxChunksSq = veinSizeEnabled ? veinSizeDistanceToMaxChunks * veinSizeDistanceToMaxChunks : -1.0D;
     }
 
-    private static Set<String> normalize(final List<String> values) {
-        final Set<String> normalized = new LinkedHashSet<>();
-        for (final String value : values) {
-            if (value == null) {
+    private static Set<String> parseBlockKeySet(final List<String> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return Collections.emptySet();
+        }
+
+        final Set<String> values = new LinkedHashSet<>();
+        for (final String token : raw) {
+            if (token == null) {
                 continue;
             }
-            final String trimmed = value.trim();
-            if (!trimmed.isEmpty()) {
-                normalized.add(trimmed.toLowerCase(Locale.ROOT));
+            final String value = token.trim().toLowerCase(Locale.ROOT);
+            if (!value.isEmpty()) {
+                values.add(value);
             }
         }
-        return normalized;
+
+        return Collections.unmodifiableSet(values);
     }
 }
