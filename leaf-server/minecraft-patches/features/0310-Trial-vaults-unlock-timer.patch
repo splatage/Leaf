@@ -1,0 +1,207 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: splatage <noj.melville@gmail.com>
+Date: Sun, 15 Mar 2026 20:27:12 +1300
+Subject: [PATCH] Trial vaults unlock timer
+
+
+diff --git a/net/minecraft/world/level/block/entity/vault/VaultBlockEntity.java b/net/minecraft/world/level/block/entity/vault/VaultBlockEntity.java
+index ecf36e261f1a50b34f0e10d9abe62bc590cc6a7c..2d22328707c18d849ddbca61f585c6e095b35a9e 100644
+--- a/net/minecraft/world/level/block/entity/vault/VaultBlockEntity.java
++++ b/net/minecraft/world/level/block/entity/vault/VaultBlockEntity.java
+@@ -1,6 +1,7 @@
+ package net.minecraft.world.level.block.entity.vault;
+ 
+ import com.google.common.annotations.VisibleForTesting;
++import io.splatage.leaf.config.modules.blocks.TrialVaultResetConfig;
+ import java.util.List;
+ import java.util.Set;
+ import java.util.UUID;
+@@ -211,28 +212,30 @@ public class VaultBlockEntity extends BlockEntity {
+         private static final int INSERT_FAIL_SOUND_BUFFER_TICKS = 15;
+ 
+         public static void tick(ServerLevel level, BlockPos pos, BlockState state, VaultConfig config, VaultServerData serverData, VaultSharedData sharedData) {
+-            VaultState vaultState = state.getValue(VaultBlock.STATE);
+-            if (shouldCycleDisplayItem(level.getGameTime(), vaultState)) {
+-                cycleDisplayItemFromLootTable(level, vaultState, config, sharedData, pos);
+-            }
++                handleRewardedPlayersReset(level, state, serverData);
+ 
+-            BlockState blockState = state;
+-            if (level.getGameTime() >= serverData.stateUpdatingResumesAt()) {
+-                blockState = state.setValue(VaultBlock.STATE, vaultState.tickAndGetNext(level, pos, config, serverData, sharedData));
+-                if (state != blockState) {
+-                    setVaultState(level, pos, state, blockState, config, sharedData);
++                VaultState vaultState = state.getValue(VaultBlock.STATE);
++                if (shouldCycleDisplayItem(level.getGameTime(), vaultState)) {
++                        cycleDisplayItemFromLootTable(level, vaultState, config, sharedData, pos);
+                 }
+-            }
+ 
+-            if (serverData.isDirty || sharedData.isDirty) {
+-                VaultBlockEntity.setChanged(level, pos, state);
+-                if (sharedData.isDirty) {
+-                    level.sendBlockUpdated(pos, state, blockState, Block.UPDATE_CLIENTS);
++                BlockState blockState = state;
++                if (level.getGameTime() >= serverData.stateUpdatingResumesAt()) {
++                        blockState = state.setValue(VaultBlock.STATE, vaultState.tickAndGetNext(level, pos, config, serverData, sharedData));
++                        if (state != blockState) {
++                                setVaultState(level, pos, state, blockState, config, sharedData);
++                        }
+                 }
+ 
+-                serverData.isDirty = false;
+-                sharedData.isDirty = false;
+-            }
++                if (serverData.isDirty || sharedData.isDirty) {
++                        VaultBlockEntity.setChanged(level, pos, state);
++                        if (sharedData.isDirty) {
++                                level.sendBlockUpdated(pos, state, blockState, Block.UPDATE_CLIENTS);
++                        }
++
++                        serverData.isDirty = false;
++                        sharedData.isDirty = false;
++                }
+         }
+ 
+         public static void tryInsertKey(
+@@ -253,6 +256,7 @@ public class VaultBlockEntity extends BlockEntity {
+                     playInsertFailSound(level, serverData, pos, SoundEvents.VAULT_REJECT_REWARDED_PLAYER);
+                 } else {
+                     List<ItemStack> list = resolveItemsToEject(level, config, pos, player, stack);
++
+                     if (!list.isEmpty()) {
+                         player.awardStat(Stats.ITEM_USED.get(stack.getItem()));
+                         stack.consume(config.keyItem().getCount(), player);
+@@ -264,6 +268,7 @@ public class VaultBlockEntity extends BlockEntity {
+                         // CraftBukkit end
+                         unlock(level, state, pos, config, serverData, sharedData, list, player); // Paper - Vault API
+                         serverData.addToRewardedPlayers(player);
++                        updateRewardedPlayersResetSchedule(level.getGameTime(), serverData);
+                         sharedData.updateConnectedPlayersWithinRange(level, pos, serverData, config, config.deactivationRange());
+                     }
+                 }
+@@ -376,6 +381,41 @@ public class VaultBlockEntity extends BlockEntity {
+             return gameTime % 20L == 0L && state == VaultState.ACTIVE;
+         }
+ 
++        private static void handleRewardedPlayersReset(ServerLevel level, BlockState state, VaultServerData serverData) {
++            if (!TrialVaultResetConfig.enabled || TrialVaultResetConfig.resetAfterTicks <= 0L) {
++                serverData.clearRewardedPlayersResetSchedule();
++                return;
++            }
++
++            if (!serverData.hasRewardedPlayersResetScheduled()) {
++                return;
++            }
++
++            if (level.getGameTime() < serverData.rewardedPlayersResetAt()) {
++                return;
++            }
++
++            VaultState vaultState = state.getValue(VaultBlock.STATE);
++            if (vaultState == VaultState.UNLOCKING || vaultState == VaultState.EJECTING) {
++                return;
++            }
++
++            if (!serverData.getItemsToEject().isEmpty()) {
++                return;
++            }
++
++            serverData.clearRewardedPlayersForReset();
++            serverData.pauseStateUpdatingUntil(level.getGameTime());
++        }
++
++        private static void updateRewardedPlayersResetSchedule(long gameTime, VaultServerData serverData) {
++            if (TrialVaultResetConfig.enabled && TrialVaultResetConfig.resetAfterTicks > 0L) {
++                serverData.scheduleRewardedPlayersResetAt(gameTime + TrialVaultResetConfig.resetAfterTicks);
++            } else {
++                serverData.clearRewardedPlayersResetSchedule();
++            }
++        }
++
+         private static void playInsertFailSound(ServerLevel level, VaultServerData serverData, BlockPos pos, SoundEvent sound) {
+             if (level.getGameTime() >= serverData.getLastInsertFailTimestamp() + 15L) {
+                 level.playSound(null, pos, sound, SoundSource.BLOCKS);
+diff --git a/net/minecraft/world/level/block/entity/vault/VaultServerData.java b/net/minecraft/world/level/block/entity/vault/VaultServerData.java
+index c73ccb38eb4cd5995a9005f3319acad2605c6a2b..524d761dbf78286ad7f98831072fd61efafd7b2f 100644
+--- a/net/minecraft/world/level/block/entity/vault/VaultServerData.java
++++ b/net/minecraft/world/level/block/entity/vault/VaultServerData.java
+@@ -19,23 +19,26 @@ public class VaultServerData {
+     static final String TAG_NAME = "server_data";
+     static Codec<VaultServerData> CODEC = RecordCodecBuilder.create(
+         instance -> instance.group(
+-                UUIDUtil.CODEC_LINKED_SET.lenientOptionalFieldOf("rewarded_players", Set.of()).forGetter(vaultServerData -> vaultServerData.rewardedPlayers),
+-                Codec.LONG.lenientOptionalFieldOf("state_updating_resumes_at", 0L).forGetter(vaultServerData -> vaultServerData.stateUpdatingResumesAt),
+-                ItemStack.CODEC.listOf().lenientOptionalFieldOf("items_to_eject", List.of()).forGetter(vaultServerData -> vaultServerData.itemsToEject),
+-                Codec.INT.lenientOptionalFieldOf("total_ejections_needed", 0).forGetter(vaultServerData -> vaultServerData.totalEjectionsNeeded)
+-            )
+-            .apply(instance, VaultServerData::new)
++            UUIDUtil.CODEC_LINKED_SET.lenientOptionalFieldOf("rewarded_players", Set.of()).forGetter(vaultServerData -> vaultServerData.rewardedPlayers),
++            Codec.LONG.lenientOptionalFieldOf("rewarded_players_reset_at", 0L).forGetter(vaultServerData -> vaultServerData.rewardedPlayersResetAt),
++            Codec.LONG.lenientOptionalFieldOf("state_updating_resumes_at", 0L).forGetter(vaultServerData -> vaultServerData.stateUpdatingResumesAt),
++            ItemStack.CODEC.listOf().lenientOptionalFieldOf("items_to_eject", List.of()).forGetter(vaultServerData -> vaultServerData.itemsToEject),
++            Codec.INT.lenientOptionalFieldOf("total_ejections_needed", 0).forGetter(vaultServerData -> vaultServerData.totalEjectionsNeeded)
++        )
++        .apply(instance, VaultServerData::new)
+     );
+     private static final int MAX_REWARD_PLAYERS = 128;
+     private final Set<UUID> rewardedPlayers = new ObjectLinkedOpenHashSet<>();
++    private long rewardedPlayersResetAt;
+     private long stateUpdatingResumesAt;
+     private final List<ItemStack> itemsToEject = new ObjectArrayList<>();
+     private long lastInsertFailTimestamp;
+     private int totalEjectionsNeeded;
+     boolean isDirty;
+ 
+-    VaultServerData(Set<UUID> rewardedPlayers, long stateUpdatingResumesAt, List<ItemStack> itemsToEject, int totalEjectionsNeeded) {
++    VaultServerData(Set<UUID> rewardedPlayers, long rewardedPlayersResetAt, long stateUpdatingResumesAt, List<ItemStack> itemsToEject, int totalEjectionsNeeded) {
+         this.rewardedPlayers.addAll(rewardedPlayers);
++        this.rewardedPlayersResetAt = rewardedPlayersResetAt;
+         this.stateUpdatingResumesAt = stateUpdatingResumesAt;
+         this.itemsToEject.addAll(itemsToEject);
+         this.totalEjectionsNeeded = totalEjectionsNeeded;
+@@ -56,6 +59,36 @@ public class VaultServerData {
+         return this.rewardedPlayers;
+     }
+ 
++    public long rewardedPlayersResetAt() {
++        return this.rewardedPlayersResetAt;
++    }
++
++    public boolean hasRewardedPlayersResetScheduled() {
++        return this.rewardedPlayersResetAt > 0L;
++    }
++
++    public void scheduleRewardedPlayersResetAt(final long resetAt) {
++        if (this.rewardedPlayersResetAt != resetAt) {
++            this.rewardedPlayersResetAt = resetAt;
++            this.markChanged();
++        }
++    }
++
++    public void clearRewardedPlayersResetSchedule() {
++        if (this.rewardedPlayersResetAt != 0L) {
++            this.rewardedPlayersResetAt = 0L;
++            this.markChanged();
++        }
++    }
++
++    public void clearRewardedPlayersForReset() {
++        if (!this.rewardedPlayers.isEmpty() || this.rewardedPlayersResetAt != 0L) {
++            this.rewardedPlayers.clear();
++            this.rewardedPlayersResetAt = 0L;
++            this.markChanged();
++        }
++    }
++
+     boolean hasRewardedPlayer(Player player) {
+         return this.rewardedPlayers.contains(player.getUUID());
+     }
+@@ -119,6 +152,7 @@ public class VaultServerData {
+     }
+ 
+     void set(VaultServerData other) {
++        this.rewardedPlayersResetAt = other.rewardedPlayersResetAt();
+         this.stateUpdatingResumesAt = other.stateUpdatingResumesAt();
+         this.itemsToEject.clear();
+         this.itemsToEject.addAll(other.itemsToEject);
