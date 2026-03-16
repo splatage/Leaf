@@ -1,0 +1,17 @@
+name: TheWildEconomy
+main: com.thewild.economy.TheWildEconomyPlugin
+version: ${version}
+api-version: '1.21'
+authors: [TheWild]
+softdepend: [Vault]
+commands:
+  shop:
+    description: Open The Wild economy commands
+    usage: /shop <exchange|market>
+  shopadmin:
+    description: Economy administration commands
+    usage: /shopadmin <reload|exchange|market|transactions|audit>
+    permission: thewild.economy.admin
+permissions:
+  thewild.economy.admin:
+    default: op

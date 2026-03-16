@@ -1,0 +1,37 @@
+database:
+  type: sqlite # sqlite or mysql
+  sqlite:
+    file: plugins/TheWildEconomy/economy.db
+  mysql:
+    host: localhost
+    port: 3306
+    database: thewild
+    username: root
+    password: change-me
+    parameters: useSSL=false&serverTimezone=UTC
+exchange:
+  strict-metadata: true
+  items:
+    OAK_LOG:
+      display-name: "Oak Log"
+      buy-price: 8.0
+      sell-price: 5.0
+      shortage-threshold: 256
+      surplus-threshold: 2048
+      enabled: true
+      metadata-policy: STRICT
+    COBBLESTONE:
+      display-name: "Cobblestone"
+      buy-price: 2.0
+      sell-price: 1.0
+      shortage-threshold: 1024
+      surplus-threshold: 8192
+      enabled: true
+      metadata-policy: STRICT
+marketplace:
+  listing-fee: 10.0
+  sales-tax-rate: 0.05
+  max-active-listings-per-player: 25
+  default-expiry-hours: 72
+logging:
+  verbose-audit: true
