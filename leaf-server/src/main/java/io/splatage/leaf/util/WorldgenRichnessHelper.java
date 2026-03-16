@@ -36,7 +36,7 @@ public final class WorldgenRichnessHelper {
             return 1;
         }
 
-        if (isBlacklisted(oreConfiguration)) {
+        if (!participates(oreConfiguration)) {
             return 1;
         }
 
@@ -64,15 +64,15 @@ public final class WorldgenRichnessHelper {
         return whole + (random.nextDouble() < fractional ? 1 : 0);
     }
 
-    private static boolean isBlacklisted(final OreConfiguration config) {
-        final Set<String> blacklist = OreRichness.blacklist;
-        if (blacklist.isEmpty()) {
+    private static boolean participates(final OreConfiguration config) {
+        final Set<String> whitelist = OreRichness.whitelist;
+        if (whitelist.isEmpty()) {
             return false;
         }
 
         for (final OreConfiguration.TargetBlockState targetBlockState : config.targetStates) {
             final String blockKey = BuiltInRegistries.BLOCK.getKey(targetBlockState.state.getBlock()).toString();
-            if (blacklist.contains(blockKey)) {
+            if (whitelist.contains(blockKey)) {
                 return true;
             }
         }
