@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: splatage <noj.melville@gmail.com>
 Date: Wed, 11 Mar 2026 12:31:22 +1300
-Subject: [PATCH] NaturalSpawner.java
+Subject: [PATCH] Add hybrid mobcaps
 
 
 diff --git a/net/minecraft/world/level/NaturalSpawner.java b/net/minecraft/world/level/NaturalSpawner.java
