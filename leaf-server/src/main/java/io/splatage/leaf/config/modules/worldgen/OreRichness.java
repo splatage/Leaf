@@ -20,7 +20,7 @@ public final class OreRichness extends SplatageConfigModules {
     public static double frequencyMaxPercent = -1.0D;
     public static int frequencyDistanceToMax = -1;
 
-    public static Set<String> blacklist = Collections.emptySet();
+    public static Set<String> whitelist = Collections.emptySet();
 
     public static boolean frequencyEnabled = false;
     public static double centerChunkX = 0.0D;
@@ -32,10 +32,12 @@ public final class OreRichness extends SplatageConfigModules {
         config.addComment(BASE_PATH, """
             Distance-based ore richness tuning for The Wild.
             Percent values are relative to vanilla generation where 100.0 means vanilla.
-            -1 disables frequency scaling. Blacklisted ores remain fully vanilla.
+            -1 disables frequency scaling.
             Distance values are configured in blocks and resolved internally in chunk-space.
             Richness is measured from configurable center-x and center-z block coordinates.
-            Blacklist entries match ore output block keys such as minecraft:coal_ore.
+            Only ores listed in whitelist participate in Wild richness scaling.
+            Whitelist entries match ore output block keys such as minecraft:diamond_ore.
+            Empty whitelist means no ores participate.
             """);
 
         enabled = config.getBoolean(
@@ -74,11 +76,11 @@ public final class OreRichness extends SplatageConfigModules {
             "Distance in blocks from the configured center where frequency reaches max-percent. -1 disables frequency scaling."
         );
 
-        blacklist = parseBlockKeySet(
+        whitelist = parseBlockKeySet(
             config.getList(
-                BASE_PATH + ".blacklist",
+                BASE_PATH + ".whitelist",
                 List.of(),
-                "Ores excluded from Wild richness scaling and left at vanilla generation."
+                "Only ores listed here participate in Wild richness scaling. Empty whitelist means no ores participate."
             )
         );
 
