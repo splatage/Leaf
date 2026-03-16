@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: splatage <noj.melville@gmail.com>
 Date: Thu, 12 Mar 2026 13:21:25 +1300
-Subject: [PATCH] improved copper golem ai
+Subject: [PATCH] Improved Copper Golem AI
 
 
 diff --git a/net/minecraft/world/entity/ai/behavior/TransportItemsBetweenContainers.java b/net/minecraft/world/entity/ai/behavior/TransportItemsBetweenContainers.java
