@@ -5,7 +5,7 @@ Subject: [PATCH] PWT Entity Teleport Fix
 
 
 diff --git a/net/minecraft/server/MinecraftServer.java b/net/minecraft/server/MinecraftServer.java
-index 912ef41ae1e97ff856386394d8816710d31d2e13..3ca4c34011d4c473c30247490b48c7793aeeb910 100644
+index afc72724132753b5438e9f753bc4f18c952f0d9c..7a4db137fd8bcec845c3cad8fb3e30f8f8ea3635 100644
 --- a/net/minecraft/server/MinecraftServer.java
 +++ b/net/minecraft/server/MinecraftServer.java
 @@ -138,10 +138,13 @@ import net.minecraft.util.thread.ReentrantBlockableEventLoop;
@@ -109,7 +109,7 @@ index 912ef41ae1e97ff856386394d8816710d31d2e13..3ca4c34011d4c473c30247490b48c779
      // Paper end - rewrite chunk system
  
      public MinecraftServer(
-@@ -1970,18 +2044,20 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -1971,18 +2045,20 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
              }
  
              while (!tasks.isEmpty()) {
