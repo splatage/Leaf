@@ -191,7 +191,7 @@ index 3ca08ab3b57c278748ad58ab03751f25ab6202e5..a361adb535bd3082cf51f12ee93680a3
              // send view cannot be greater-than load view
              final int clientViewDistance = getClientViewDistance(this.player);
 -            final int sendViewDistance = getSendViewDistance(loadViewDistance, clientViewDistance, playerDistances.sendViewDistance, worldDistances.sendViewDistance);
-+            int sendViewDistance = getSendViewDistance(loadViewDistance, clientViewDistance, playerDistances.sendViewDistance, worldDistances.sendViewDistance);
++            final int sendViewDistance = getSendViewDistance(loadViewDistance, clientViewDistance, playerDistances.sendViewDistance, worldDistances.sendViewDistance);
 +
 +            final boolean elytraTransit = isElytraTransit(this.player);
 +            if (elytraTransit) {
