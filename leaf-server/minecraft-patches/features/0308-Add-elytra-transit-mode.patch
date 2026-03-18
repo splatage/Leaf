@@ -166,12 +166,6 @@ index 3ca08ab3b57c278748ad58ab03751f25ab6202e5..a361adb535bd3082cf51f12ee93680a3
 -            final int sendViewDistance = getSendViewDistance(loadViewDistance, clientViewDistance, playerDistances.sendViewDistance, worldDistances.sendViewDistance);
 +            int sendViewDistance = getSendViewDistance(loadViewDistance, clientViewDistance, playerDistances.sendViewDistance, worldDistances.sendViewDistance);
 +
-+            if (isElytraGlideControlled(this.player)) {
-+                tickViewDistance = Math.min(tickViewDistance, ElytraTransit.glideTickViewDistance);
-+                loadViewDistance = Math.min(loadViewDistance, ElytraTransit.glideLoadViewDistance);
-+                sendViewDistance = Math.min(sendViewDistance, ElytraTransit.glideSendViewDistance);
-+            }
-+
 +            if (isElytraTransit(this.player)) {
 +                tickViewDistance = Math.min(tickViewDistance, ElytraTransit.transitTickViewDistance);
 +                loadViewDistance = Math.min(loadViewDistance, ElytraTransit.transitLoadViewDistance);
@@ -198,13 +192,6 @@ index 3ca08ab3b57c278748ad58ab03751f25ab6202e5..a361adb535bd3082cf51f12ee93680a3
              final int clientViewDistance = getClientViewDistance(this.player);
 -            final int sendViewDistance = getSendViewDistance(loadViewDistance, clientViewDistance, playerDistances.sendViewDistance, worldDistances.sendViewDistance);
 +            int sendViewDistance = getSendViewDistance(loadViewDistance, clientViewDistance, playerDistances.sendViewDistance, worldDistances.sendViewDistance);
-+
-+            final boolean elytraGlideControlled = isElytraGlideControlled(this.player);
-+            if (elytraGlideControlled) {
-+                tickViewDistance = Math.min(tickViewDistance, ElytraTransit.glideTickViewDistance);
-+                loadViewDistance = Math.min(loadViewDistance, ElytraTransit.glideLoadViewDistance);
-+                sendViewDistance = Math.min(sendViewDistance, ElytraTransit.glideSendViewDistance);
-+            }
 +
 +            final boolean elytraTransit = isElytraTransit(this.player);
 +            if (elytraTransit) {
