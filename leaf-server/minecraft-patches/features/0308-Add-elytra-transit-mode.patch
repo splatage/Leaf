@@ -1,11 +1,11 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: splatage <noj.melville@gmail.com>
-Date: Mon, 16 Mar 2026 01:39:37 +1300
+Date: Thu, 19 Mar 2026 09:21:57 +1300
 Subject: [PATCH] Add elytra transit mode
 
 
 diff --git a/ca/spottedleaf/moonrise/patches/chunk_system/player/RegionizedPlayerChunkLoader.java b/ca/spottedleaf/moonrise/patches/chunk_system/player/RegionizedPlayerChunkLoader.java
-index 3ca08ab3b57c278748ad58ab03751f25ab6202e5..a361adb535bd3082cf51f12ee93680a314ef2b35 100644
+index 3ca08ab3b57c278748ad58ab03751f25ab6202e5..b13741249d49059a7c0773fb001b38ebb73259e9 100644
 --- a/ca/spottedleaf/moonrise/patches/chunk_system/player/RegionizedPlayerChunkLoader.java
 +++ b/ca/spottedleaf/moonrise/patches/chunk_system/player/RegionizedPlayerChunkLoader.java
 @@ -3,6 +3,7 @@ package ca.spottedleaf.moonrise.patches.chunk_system.player;
@@ -149,7 +149,7 @@ index 3ca08ab3b57c278748ad58ab03751f25ab6202e5..a361adb535bd3082cf51f12ee93680a3
              // try to push more chunk loads
              final long maxLoads = Math.max(0L, Math.min(MAX_RATE, Math.min(this.loadQueue.size(), this.getMaxChunkLoads())));
              final int maxLoadsThisTick = (int)this.chunkLoadTicketLimiter.takeAllocation(time, loadRate, maxLoads);
-@@ -879,15 +952,27 @@ public final class RegionizedPlayerChunkLoader {
+@@ -879,15 +952,21 @@ public final class RegionizedPlayerChunkLoader {
              final int chunkX = this.player.chunkPosition().x;
              final int chunkZ = this.player.chunkPosition().z;
  
@@ -174,7 +174,7 @@ index 3ca08ab3b57c278748ad58ab03751f25ab6202e5..a361adb535bd3082cf51f12ee93680a3
  
              // send view distances
              this.player.connection.send(this.updateClientChunkRadius(sendViewDistance));
-@@ -932,18 +1017,34 @@ public final class RegionizedPlayerChunkLoader {
+@@ -932,18 +1011,27 @@ public final class RegionizedPlayerChunkLoader {
              final ViewDistances playerDistances = ((ChunkSystemServerPlayer)this.player).moonrise$getViewDistanceHolder().getViewDistances();
              final ViewDistances worldDistances = ((ChunkSystemServerLevel)this.world).moonrise$getViewDistanceHolder().getViewDistances();
  
@@ -191,7 +191,7 @@ index 3ca08ab3b57c278748ad58ab03751f25ab6202e5..a361adb535bd3082cf51f12ee93680a3
              // send view cannot be greater-than load view
              final int clientViewDistance = getClientViewDistance(this.player);
 -            final int sendViewDistance = getSendViewDistance(loadViewDistance, clientViewDistance, playerDistances.sendViewDistance, worldDistances.sendViewDistance);
-+            final int sendViewDistance = getSendViewDistance(loadViewDistance, clientViewDistance, playerDistances.sendViewDistance, worldDistances.sendViewDistance);
++            int sendViewDistance = getSendViewDistance(loadViewDistance, clientViewDistance, playerDistances.sendViewDistance, worldDistances.sendViewDistance);
 +
 +            final boolean elytraTransit = isElytraTransit(this.player);
 +            if (elytraTransit) {
@@ -208,7 +208,7 @@ index 3ca08ab3b57c278748ad58ab03751f25ab6202e5..a361adb535bd3082cf51f12ee93680a3
              final int currentChunkX = playerPos.x;
              final int currentChunkZ = playerPos.z;
  
-@@ -962,6 +1063,10 @@ public final class RegionizedPlayerChunkLoader {
+@@ -962,6 +1050,10 @@ public final class RegionizedPlayerChunkLoader {
  
                      // can we still generate chunks?
                      && this.canGenerateChunks == canGenerateChunks
@@ -219,7 +219,7 @@ index 3ca08ab3b57c278748ad58ab03751f25ab6202e5..a361adb535bd3082cf51f12ee93680a3
              ) {
                  // nothing we care about changed, so we're not re-calculating
                  return;
-@@ -1037,7 +1142,7 @@ public final class RegionizedPlayerChunkLoader {
+@@ -1037,7 +1129,7 @@ public final class RegionizedPlayerChunkLoader {
                          break;
                      }
                      case CHUNK_TICKET_STAGE_LOADED: {
