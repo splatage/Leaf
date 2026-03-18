@@ -22,7 +22,12 @@ public final class WorldgenRichnessHelper {
             return 100.0D;
         }
 
-        final double factor = WildScaling.getChunkDistanceFactor(level, center, OreRichness.frequencyDistanceToMaxChunksSq);
+        final double factor = WildScaling.getChunkDistanceFactor(
+            center,
+            OreRichness.centerChunkX,
+            OreRichness.centerChunkZ,
+            OreRichness.frequencyDistanceToMaxChunksSq
+        );
         return WildScaling.lerpPercent(factor, OreRichness.frequencyStartPercent, OreRichness.frequencyMaxPercent);
     }
 
@@ -53,7 +58,12 @@ public final class WorldgenRichnessHelper {
             return access.splatage$getOreFrequencyPercent();
         }
 
-        final double factor = WildScaling.getBlockDistanceFactor(level.getLevel(), origin, OreRichness.frequencyDistanceToMax);
+        final double factor = WildScaling.getBlockDistanceFactor(
+            origin,
+            OreRichness.centerX,
+            OreRichness.centerZ,
+            OreRichness.frequencyDistanceToMax
+        );
         return WildScaling.lerpPercent(factor, OreRichness.frequencyStartPercent, OreRichness.frequencyMaxPercent);
     }
 
