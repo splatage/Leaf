@@ -1,6 +1,7 @@
 package io.splatage.leaf.util;
 
 import io.splatage.leaf.config.modules.entities.WildStrength;
+import java.util.Locale;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
@@ -19,7 +20,7 @@ public final class WildStrengthHelper {
     }
 
     public static void apply(final Mob mob) {
-        if (!WildStrength.wildStrengthEnabled) {
+        if (!isAffectedMob(mob)) {
             return;
         }
 
@@ -51,7 +52,7 @@ public final class WildStrengthHelper {
     }
 
     public static float resolveEquipmentSpawnChanceMultiplier(final Mob mob) {
-        if (!isHostileMob(mob) || !WildStrength.equipmentSpawnChanceEnabled) {
+        if (!isAffectedMob(mob) || !WildStrength.equipmentSpawnChanceEnabled) {
             return 1.0F;
         }
 
@@ -67,7 +68,7 @@ public final class WildStrengthHelper {
     }
 
     public static int resolveEquipmentTierBonus(final Mob mob, final RandomSource random) {
-        if (!isHostileMob(mob) || !WildStrength.equipmentTierBonusEnabled) {
+        if (!isAffectedMob(mob) || !WildStrength.equipmentTierBonusEnabled) {
             return 0;
         }
 
@@ -88,7 +89,7 @@ public final class WildStrengthHelper {
     }
 
     public static float resolveEquipmentEnchantChanceMultiplier(final Mob mob) {
-        if (!isHostileMob(mob) || !WildStrength.equipmentEnchantChanceEnabled) {
+        if (!isAffectedMob(mob) || !WildStrength.equipmentEnchantChanceEnabled) {
             return 1.0F;
         }
 
@@ -103,8 +104,24 @@ public final class WildStrengthHelper {
         );
     }
 
+    private static boolean isAffectedMob(final Mob mob) {
+        return WildStrength.wildStrengthEnabled
+            && isHostileMob(mob)
+            && isEnabledWorld(mob);
+    }
+
     private static boolean isHostileMob(final Mob mob) {
         return mob.getType().getCategory() == MobCategory.MONSTER;
+    }
+
+    private static boolean isEnabledWorld(final Mob mob) {
+        if (mob.level().isClientSide()) {
+            return false;
+        }
+
+        final String worldName = mob.level().getWorld().getName();
+        return worldName != null
+            && WildStrength.enabledWorlds.contains(worldName.toLowerCase(Locale.ROOT));
     }
 
     private static double resolveScaledValue(
@@ -113,10 +130,6 @@ public final class WildStrengthHelper {
         final double maxValue,
         final int distanceToMax
     ) {
-        if (mob.level().isClientSide()) {
-            return startValue;
-        }
-
         final double factor = WildScaling.getBlockDistanceFactor(
             mob.blockPosition(),
             WildStrength.centerX,

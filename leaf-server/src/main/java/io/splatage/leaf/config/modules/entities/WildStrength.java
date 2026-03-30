@@ -1,6 +1,11 @@
 package io.splatage.leaf.config.modules.entities;
 
 import io.splatage.leaf.config.SplatageConfigModules;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 public final class WildStrength extends SplatageConfigModules {
 
@@ -10,6 +15,8 @@ public final class WildStrength extends SplatageConfigModules {
 
     public static int centerX = 0;
     public static int centerZ = 0;
+
+    public static Set<String> enabledWorlds = Collections.emptySet();
 
     public static double movementSpeedStartPercent = -1.0D;
     public static double movementSpeedMaxPercent = -1.0D;
@@ -47,6 +54,8 @@ public final class WildStrength extends SplatageConfigModules {
             Distance values are configured in blocks.
             Strength is measured from configurable center-x and center-z block coordinates.
             This only affects hostile mobs when they spawn.
+            Wild strength is opt-in per world using enabled-worlds.
+            Empty enabled-worlds means Wild strength is disabled in every world.
             Equipment tier bonus uses raw vanilla armor material tiers where 0.0 means no extra tier bonus.
             Fractional tier bonus values are resolved probabilistically.
             """);
@@ -67,6 +76,14 @@ public final class WildStrength extends SplatageConfigModules {
             BASE_PATH + ".center-z",
             centerZ,
             "Block Z coordinate used as the center of hostile strength scaling."
+        );
+
+        enabledWorlds = parseWorldNameSet(
+            config.getList(
+                BASE_PATH + ".enabled-worlds",
+                List.of(),
+                "World names where hostile strength scaling is enabled. Empty means disabled in every world."
+            )
         );
 
         movementSpeedStartPercent = config.getDouble(
@@ -184,10 +201,31 @@ public final class WildStrength extends SplatageConfigModules {
             && equipmentEnchantChanceMaxPercent >= 0.0D
             && equipmentEnchantChanceDistanceToMax > 0;
 
-        wildStrengthEnabled = movementSpeedEnabled
-            || attackDamageEnabled
-            || equipmentSpawnChanceEnabled
-            || equipmentTierBonusEnabled
-            || equipmentEnchantChanceEnabled;
+        wildStrengthEnabled = !enabledWorlds.isEmpty() && (
+            movementSpeedEnabled
+                || attackDamageEnabled
+                || equipmentSpawnChanceEnabled
+                || equipmentTierBonusEnabled
+                || equipmentEnchantChanceEnabled
+        );
+    }
+
+    private static Set<String> parseWorldNameSet(final List<String> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return Collections.emptySet();
+        }
+
+        final Set<String> values = new LinkedHashSet<>();
+        for (final String token : raw) {
+            if (token == null) {
+                continue;
+            }
+            final String value = token.trim().toLowerCase(Locale.ROOT);
+            if (!value.isEmpty()) {
+                values.add(value);
+            }
+        }
+
+        return Collections.unmodifiableSet(values);
     }
 }
