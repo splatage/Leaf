@@ -5,10 +5,10 @@ Subject: [PATCH] Optimize map lookups with isEmpty check
 
 
 diff --git a/net/minecraft/world/entity/Entity.java b/net/minecraft/world/entity/Entity.java
-index 5310544f5ac8bea07dc699650315f535e479d75c..98313e336f1e10d11d6e58bba80c42038c66aed9 100644
+index 905f044a6d1737190da45ebeac635132559c9fd7..22920060225646af0328686dee90823dc94ee74b 100644
 --- a/net/minecraft/world/entity/Entity.java
 +++ b/net/minecraft/world/entity/Entity.java
-@@ -4792,7 +4792,7 @@ public abstract class Entity implements SyncedDataHolder, DebugValueSource, Name
+@@ -4791,7 +4791,7 @@ private void pwt$queueDimensionTeleport(ServerLevel serverLevel) {
      }
  
      public boolean hasPassenger(Entity entity) {

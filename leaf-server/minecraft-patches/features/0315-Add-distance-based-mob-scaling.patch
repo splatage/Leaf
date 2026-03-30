@@ -1,6 +1,6 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: splatage <noj.melville@gmail.com>
-Date: Wed, 18 Mar 2026 18:10:27 +1300
+Date: Mon, 30 Mar 2026 19:00:59 +1300
 Subject: [PATCH] Add distance based mob scaling
 
 
@@ -78,7 +78,7 @@ index 63557a6c2b87e1ee4348cab61df5d900c2c1c48e..e834c00c149882de4ccc275f7a686f90
              if (zombie != null) {
                  zombie.snapTo(this.getX(), this.getY(), this.getZ(), this.getYRot(), 0.0F);
 diff --git a/net/minecraft/world/entity/monster/Monster.java b/net/minecraft/world/entity/monster/Monster.java
-index bee0c24558e1c4c2765231c77805a969323fb13d..c77238d75dae8415c050843039a5a239de59d05c 100644
+index bee0c24558e1c4c2765231c77805a969323fb13d..5b9f55178d1c380b6ab9dbe038ad2dfcea191d88 100644
 --- a/net/minecraft/world/entity/monster/Monster.java
 +++ b/net/minecraft/world/entity/monster/Monster.java
 @@ -1,5 +1,7 @@
@@ -109,7 +109,7 @@ index bee0c24558e1c4c2765231c77805a969323fb13d..c77238d75dae8415c050843039a5a239
      ) {
          return level.getDifficulty() != Difficulty.PEACEFUL
              && (EntitySpawnReason.ignoresLightRequirements(spawnReason) || isDarkEnoughToSpawn(level, pos, random))
-+            && HostileSpawnChanceHelper.passesSpawnChance(pos, spawnReason, random)
++            && HostileSpawnChanceHelper.passesSpawnChance(level, pos, spawnReason, random)
              && checkMobSpawnRules(entityType, level, spawnReason, pos, random);
      }
  
@@ -119,7 +119,7 @@ index bee0c24558e1c4c2765231c77805a969323fb13d..c77238d75dae8415c050843039a5a239
          // Purpur end - Config to disable hostile mob spawn on ice
 -        return level.getDifficulty() != Difficulty.PEACEFUL && checkMobSpawnRules(entityType, level, spawnReason, pos, random);
 +        return level.getDifficulty() != Difficulty.PEACEFUL
-+            && HostileSpawnChanceHelper.passesSpawnChance(pos, spawnReason, random)
++            && HostileSpawnChanceHelper.passesSpawnChance(level, pos, spawnReason, random)
 +            && checkMobSpawnRules(entityType, level, spawnReason, pos, random);
      }
  
@@ -143,6 +143,13 @@ index bee0c24558e1c4c2765231c77805a969323fb13d..c77238d75dae8415c050843039a5a239
      @Override
      public boolean shouldDropExperience() {
          return true;
+@@ -170,4 +189,4 @@ public abstract class Monster extends PathfinderMob implements Enemy {
+         return (!level.getMinecraftWorld().purpurConfig.mobsSpawnOnPackedIce && spawnBlock.is(net.minecraft.world.level.block.Blocks.PACKED_ICE)) || (!level.getMinecraftWorld().purpurConfig.mobsSpawnOnBlueIce && spawnBlock.is(net.minecraft.world.level.block.Blocks.BLUE_ICE));
+     }
+     // Purpur end - Config to disable hostile mob spawn on ice
+-}
++}
+\ No newline at end of file
 diff --git a/net/minecraft/world/entity/monster/Strider.java b/net/minecraft/world/entity/monster/Strider.java
 index 6e55d5d049ae77afdbc372c4c925b487650ee01f..b80d916c8e16afa4fa0de0d2fb7f1b435af46334 100644
 --- a/net/minecraft/world/entity/monster/Strider.java
@@ -332,7 +339,7 @@ index 635afc61ee441924e1d64dbcf6dbab057d80c740..a89f40c63e27cd9e2cf2d6b1f24db697
      }
  }
 diff --git a/net/minecraft/world/level/NaturalSpawner.java b/net/minecraft/world/level/NaturalSpawner.java
-index b38a5a68f1cd72c3efaa5f7a37bfc6a817a17612..e46bbdb559a9b1432468bf48df5a127aa02c0662 100644
+index b38a5a68f1cd72c3efaa5f7a37bfc6a817a17612..fb5f83871ad49023969c149effc8f8bbfecf435f 100644
 --- a/net/minecraft/world/level/NaturalSpawner.java
 +++ b/net/minecraft/world/level/NaturalSpawner.java
 @@ -3,6 +3,8 @@ package net.minecraft.world.level;
@@ -348,7 +355,7 @@ index b38a5a68f1cd72c3efaa5f7a37bfc6a817a17612..e46bbdb559a9b1432468bf48df5a127a
                  continue;
              }
  
-+            final int scaledGlobalLimit = HostileSpawnDensityHelper.resolveGlobalLimit(mobCategory, limit);
++            final int scaledGlobalLimit = HostileSpawnDensityHelper.resolveGlobalLimit(level, mobCategory, limit);
              final int hardLimit = HybridMobCaps.enabled ? HybridMobCaps.hardLimits[mobCategory.ordinal()] : -1;
  
              if ((spawnFriendlies || !mobCategory.isFriendly())
@@ -388,45 +395,48 @@ index b38a5a68f1cd72c3efaa5f7a37bfc6a817a17612..e46bbdb559a9b1432468bf48df5a127a
              }
  
              maxSpawns = Math.min(maxSpawns, spawnState.remainingSpawnSlotsForCategoryHardLimit(mobCategory, hardLimit));
-@@ -253,7 +260,10 @@ public final class NaturalSpawner {
+@@ -253,7 +260,11 @@ public final class NaturalSpawner {
  
      // Paper start - Add mobcaps commands
      public static int globalLimitForCategory(final ServerLevel level, final MobCategory category, final int spawnableChunkCount) {
 -        final int categoryLimit = level.getWorld().getSpawnLimitUnsafe(org.bukkit.craftbukkit.util.CraftSpawnCategory.toBukkit(category));
 +        final int categoryLimit = HostileSpawnDensityHelper.resolveGlobalLimit(
++            level,
 +            category,
 +            level.getWorld().getSpawnLimitUnsafe(org.bukkit.craftbukkit.util.CraftSpawnCategory.toBukkit(category))
 +        );
          if (categoryLimit < 1) {
              return categoryLimit;
          }
-@@ -542,7 +552,11 @@ public final class NaturalSpawner {
+@@ -542,7 +553,12 @@ public final class NaturalSpawner {
          Holder<Biome> biome = org.dreeam.leaf.config.modules.opt.OptimizeBiome.mobSpawn ? level.getBiomeCached(null, pos) : level.getBiome(pos); // Leaf - cache getBiome
          return category == MobCategory.WATER_AMBIENT && biome.is(BiomeTags.REDUCED_WATER_AMBIENT_SPAWNS) && random.nextFloat() < 0.98F
              ? Optional.empty()
 -            : mobsAt(level, structureManager, generator, category, pos, biome).getRandom(random);
 +            : HostilePackCompositionHelper.getRandomSpawnerData(
 +                mobsAt(level, structureManager, generator, category, pos, biome),
++                level,
 +                pos,
 +                random
 +            );
      }
  
      private static boolean canSpawnMobAt(
-@@ -788,7 +802,11 @@ public final class NaturalSpawner {
+@@ -788,7 +804,12 @@ public final class NaturalSpawner {
          Holder<Biome> biome = org.dreeam.leaf.config.modules.opt.OptimizeBiome.mobSpawn ? level.getBiomeCached(chunk, pos) : level.getBiome(pos); // Leaf - cache getBiome
          return category == MobCategory.WATER_AMBIENT && biome.is(BiomeTags.REDUCED_WATER_AMBIENT_SPAWNS) && random.nextFloat() < 0.98F
              ? Optional.empty()
 -            : mobsAtWithChunk(level, structureManager, generator, category, pos, biome, chunk).getRandom(random);
 +            : HostilePackCompositionHelper.getRandomSpawnerData(
 +                mobsAtWithChunk(level, structureManager, generator, category, pos, biome, chunk),
++                level,
 +                pos,
 +                random
 +            );
      }
  
      // Copied and modified from `mobsAt`
-@@ -912,6 +930,10 @@ public final class NaturalSpawner {
+@@ -912,6 +933,10 @@ public final class NaturalSpawner {
              return this.localMobCapCalculator.canSpawn(category, chunkPos) || SharedConstants.DEBUG_IGNORE_LOCAL_MOB_CAP;
          }
  
@@ -437,3 +447,10 @@ index b38a5a68f1cd72c3efaa5f7a37bfc6a817a17612..e46bbdb559a9b1432468bf48df5a127a
          // Leaf start - optimize mob spawning
          public void applyPerPlayerMobCount(ServerLevel level) {
              if (chunkCap.isEmpty()) {
+@@ -939,4 +964,4 @@ public final class NaturalSpawner {
+         }
+         // Leaf end - optimize mob spawning
+     }
+-}
++}
+\ No newline at end of file

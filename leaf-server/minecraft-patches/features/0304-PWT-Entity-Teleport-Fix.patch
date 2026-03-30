@@ -174,10 +174,10 @@ index c30c53942005d230e73841c9e6bb4d05e746d866..f05887fff8a1352f6bd59aa06d0736bc
              MinecraftServer.LOGGER.error("Attempted Double World add on {}", entity, new Throwable());
              return true;
 diff --git a/net/minecraft/world/entity/Entity.java b/net/minecraft/world/entity/Entity.java
-index 6565b517710e6a2ed7a1fcf617b1a46279bab149..b565def57cd78163f3e455311d4122702101cca2 100644
+index 5310544f5ac8bea07dc699650315f535e479d75c..905f044a6d1737190da45ebeac635132559c9fd7 100644
 --- a/net/minecraft/world/entity/Entity.java
 +++ b/net/minecraft/world/entity/Entity.java
-@@ -3693,8 +3693,15 @@ public abstract class Entity implements SyncedDataHolder, DebugValueSource, Name
+@@ -3698,8 +3698,15 @@ public abstract class Entity implements SyncedDataHolder, DebugValueSource, Name
  
      // Leaf start - SparklyPaper - parallel world ticking - mark pending teleport to prevent clearing portal process
      private void handleTeleport(ServerLevel serverLevel) {
@@ -195,7 +195,7 @@ index 6565b517710e6a2ed7a1fcf617b1a46279bab149..b565def57cd78163f3e455311d412270
          } else {
              TeleportTransition portalDestination = this.portalProcess.getPortalDestination(serverLevel, this);
              if (portalDestination != null) {
-@@ -3707,38 +3714,30 @@ public abstract class Entity implements SyncedDataHolder, DebugValueSource, Name
+@@ -3712,38 +3719,30 @@ public abstract class Entity implements SyncedDataHolder, DebugValueSource, Name
          }
      }
  
