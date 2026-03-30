@@ -1,6 +1,11 @@
 package io.splatage.leaf.config.modules.spawning;
 
 import io.splatage.leaf.config.SplatageConfigModules;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 public final class HostileSpawnDensity extends SplatageConfigModules {
 
@@ -10,6 +15,8 @@ public final class HostileSpawnDensity extends SplatageConfigModules {
 
     public static int centerX = 0;
     public static int centerZ = 0;
+
+    public static Set<String> enabledWorlds = Collections.emptySet();
 
     public static double startPercent = -1.0D;
     public static double maxPercent = -1.0D;
@@ -29,6 +36,8 @@ public final class HostileSpawnDensity extends SplatageConfigModules {
             Distance values are configured in blocks and resolved internally in chunk-space.
             Density is measured from configurable center-x and center-z block coordinates.
             This only affects hostile natural spawning.
+            Hostile density scaling is opt-in per world using enabled-worlds.
+            Empty enabled-worlds means hostile density scaling is disabled in every world.
             """);
 
         enabled = config.getBoolean(
@@ -49,6 +58,14 @@ public final class HostileSpawnDensity extends SplatageConfigModules {
             "Block Z coordinate used as the center of hostile density scaling."
         );
 
+        enabledWorlds = parseWorldNameSet(
+            config.getList(
+                BASE_PATH + ".enabled-worlds",
+                List.of(),
+                "World names where hostile density scaling is enabled. Empty means disabled in every world."
+            )
+        );
+
         startPercent = config.getDouble(
             BASE_PATH + ".density.start-percent",
             startPercent,
@@ -67,7 +84,8 @@ public final class HostileSpawnDensity extends SplatageConfigModules {
             "Distance in blocks from the configured center where hostile density reaches max-percent. -1 disables density scaling."
         );
 
-        densityEnabled = enabled
+        densityEnabled = !enabledWorlds.isEmpty()
+            && enabled
             && startPercent >= 0.0D
             && maxPercent >= 0.0D
             && distanceToMax > 0;
@@ -75,6 +93,25 @@ public final class HostileSpawnDensity extends SplatageConfigModules {
         centerChunkX = centerX / 16.0D;
         centerChunkZ = centerZ / 16.0D;
         distanceToMaxChunksSq = densityEnabled ? square(distanceToMax / 16.0D) : -1.0D;
+    }
+
+    private static Set<String> parseWorldNameSet(final List<String> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return Collections.emptySet();
+        }
+
+        final Set<String> values = new LinkedHashSet<>();
+        for (final String token : raw) {
+            if (token == null) {
+                continue;
+            }
+            final String value = token.trim().toLowerCase(Locale.ROOT);
+            if (!value.isEmpty()) {
+                values.add(value);
+            }
+        }
+
+        return Collections.unmodifiableSet(values);
     }
 
     private static double square(final double value) {

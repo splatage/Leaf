@@ -1,9 +1,11 @@
 package io.splatage.leaf.util;
 
 import io.splatage.leaf.config.modules.spawning.HostileSpawnChance;
+import java.util.Locale;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.level.LevelAccessor;
 
 public final class HostileSpawnChanceHelper {
 
@@ -11,11 +13,12 @@ public final class HostileSpawnChanceHelper {
     }
 
     public static boolean passesSpawnChance(
+        final LevelAccessor level,
         final BlockPos pos,
         final EntitySpawnReason spawnReason,
         final RandomSource random
     ) {
-        if (!isEnabledFor(spawnReason)) {
+        if (!isEnabledFor(level, spawnReason)) {
             return true;
         }
 
@@ -30,8 +33,10 @@ public final class HostileSpawnChanceHelper {
         return random.nextDouble() * 100.0D < percent;
     }
 
-    public static boolean isEnabledFor(final EntitySpawnReason spawnReason) {
-        return HostileSpawnChance.chanceEnabled && spawnReason == EntitySpawnReason.NATURAL;
+    public static boolean isEnabledFor(final LevelAccessor level, final EntitySpawnReason spawnReason) {
+        return HostileSpawnChance.chanceEnabled
+            && spawnReason == EntitySpawnReason.NATURAL
+            && isEnabledWorld(level);
     }
 
     public static double resolveSpawnChancePercent(final BlockPos pos) {
@@ -44,6 +49,12 @@ public final class HostileSpawnChanceHelper {
             + factor * (HostileSpawnChance.maxPercent - HostileSpawnChance.startPercent);
 
         return clampPercent(percent);
+    }
+
+    private static boolean isEnabledWorld(final LevelAccessor level) {
+        final String worldName = level.getMinecraftWorld().getWorld().getName();
+        return worldName != null
+            && HostileSpawnChance.enabledWorlds.contains(worldName.toLowerCase(Locale.ROOT));
     }
 
     private static double resolveDistanceFactor(final BlockPos pos) {

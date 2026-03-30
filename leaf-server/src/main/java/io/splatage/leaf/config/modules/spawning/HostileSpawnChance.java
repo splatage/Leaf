@@ -1,6 +1,11 @@
 package io.splatage.leaf.config.modules.spawning;
 
 import io.splatage.leaf.config.SplatageConfigModules;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 public final class HostileSpawnChance extends SplatageConfigModules {
 
@@ -10,6 +15,8 @@ public final class HostileSpawnChance extends SplatageConfigModules {
 
     public static int centerX = 0;
     public static int centerZ = 0;
+
+    public static Set<String> enabledWorlds = Collections.emptySet();
 
     public static double startPercent = -1.0D;
     public static double maxPercent = -1.0D;
@@ -28,6 +35,8 @@ public final class HostileSpawnChance extends SplatageConfigModules {
             Distance values are configured in blocks.
             Spawn chance is measured from configurable center-x and center-z block coordinates.
             This only affects hostile natural spawning.
+            Hostile spawn chance is opt-in per world using enabled-worlds.
+            Empty enabled-worlds means hostile spawn chance scaling is disabled in every world.
             """);
 
         enabled = config.getBoolean(
@@ -48,6 +57,14 @@ public final class HostileSpawnChance extends SplatageConfigModules {
             "Block Z coordinate used as the center of hostile spawn chance scaling."
         );
 
+        enabledWorlds = parseWorldNameSet(
+            config.getList(
+                BASE_PATH + ".enabled-worlds",
+                List.of(),
+                "World names where hostile spawn chance scaling is enabled. Empty means disabled in every world."
+            )
+        );
+
         startPercent = config.getDouble(
             BASE_PATH + ".chance.start-percent",
             startPercent,
@@ -66,9 +83,29 @@ public final class HostileSpawnChance extends SplatageConfigModules {
             "Distance in blocks from the configured center where hostile spawn chance reaches max-percent. -1 disables spawn chance scaling."
         );
 
-        chanceEnabled = enabled
+        chanceEnabled = !enabledWorlds.isEmpty()
+            && enabled
             && startPercent >= 0.0D
             && maxPercent >= 0.0D
             && distanceToMax > 0;
+    }
+
+    private static Set<String> parseWorldNameSet(final List<String> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return Collections.emptySet();
+        }
+
+        final Set<String> values = new LinkedHashSet<>();
+        for (final String token : raw) {
+            if (token == null) {
+                continue;
+            }
+            final String value = token.trim().toLowerCase(Locale.ROOT);
+            if (!value.isEmpty()) {
+                values.add(value);
+            }
+        }
+
+        return Collections.unmodifiableSet(values);
     }
 }
