@@ -3,8 +3,10 @@ package io.splatage.leaf.util;
 import io.splatage.leaf.config.modules.spawning.HostilePackComposition;
 import io.splatage.leaf.config.modules.spawning.HostilePackComposition.HostilePackType;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.util.random.Weighted;
 import net.minecraft.util.random.WeightedList;
@@ -18,10 +20,11 @@ public final class HostilePackCompositionHelper {
 
     public static Optional<MobSpawnSettings.SpawnerData> getRandomSpawnerData(
         final WeightedList<MobSpawnSettings.SpawnerData> spawners,
+        final ServerLevel level,
         final BlockPos origin,
         final RandomSource random
     ) {
-        if (!HostilePackComposition.packCompositionEnabled) {
+        if (!isEnabledFor(level)) {
             return spawners.getRandom(random);
         }
 
@@ -65,6 +68,16 @@ public final class HostilePackCompositionHelper {
 
         final double percent = resolveWeightPercent(origin);
         return Math.max(0, (int) Math.round(baseWeight * Math.max(0.0D, percent) / 100.0D));
+    }
+
+    private static boolean isEnabledFor(final ServerLevel level) {
+        if (!HostilePackComposition.packCompositionEnabled) {
+            return false;
+        }
+
+        final String worldName = level.getWorld().getName();
+        return worldName != null
+            && HostilePackComposition.enabledWorlds.contains(worldName.toLowerCase(Locale.ROOT));
     }
 
     private static double resolveWeightPercent(final BlockPos origin) {

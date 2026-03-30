@@ -1,6 +1,11 @@
 package io.splatage.leaf.config.modules.spawning;
 
 import io.splatage.leaf.config.SplatageConfigModules;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.EntityType;
 import org.jspecify.annotations.Nullable;
@@ -13,6 +18,8 @@ public final class HostilePackComposition extends SplatageConfigModules {
 
     public static int centerX = 0;
     public static int centerZ = 0;
+
+    public static Set<String> enabledWorlds = Collections.emptySet();
 
     public static double weightStartPercent = -1.0D;
     public static double weightMaxPercent = -1.0D;
@@ -67,6 +74,8 @@ public final class HostilePackComposition extends SplatageConfigModules {
             Scaling is measured from configurable center-x and center-z block coordinates.
             This only affects natural hostile spawn-list weight selection.
             It does not create any synthetic spawn system and does not modify pack size.
+            Hostile pack composition scaling is opt-in per world using enabled-worlds.
+            Empty enabled-worlds means hostile pack composition scaling is disabled in every world.
             """);
 
         enabled = config.getBoolean(
@@ -85,6 +94,14 @@ public final class HostilePackComposition extends SplatageConfigModules {
             BASE_PATH + ".center-z",
             centerZ,
             "Block Z coordinate used as the center of hostile spawn-weight scaling."
+        );
+
+        enabledWorlds = parseWorldNameSet(
+            config.getList(
+                BASE_PATH + ".enabled-worlds",
+                List.of(),
+                "World names where hostile pack composition scaling is enabled. Empty means disabled in every world."
+            )
         );
 
         weightStartPercent = config.getDouble(
@@ -110,7 +127,7 @@ public final class HostilePackComposition extends SplatageConfigModules {
             && weightMaxPercent >= 0.0D
             && weightDistanceToMax > 0;
 
-        packCompositionEnabled = weightScalingEnabled;
+        packCompositionEnabled = !enabledWorlds.isEmpty() && weightScalingEnabled;
     }
 
     public static @Nullable HostilePackType resolveType(final EntityType<?> entityType) {
@@ -121,5 +138,24 @@ public final class HostilePackComposition extends SplatageConfigModules {
             }
         }
         return null;
+    }
+
+    private static Set<String> parseWorldNameSet(final List<String> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return Collections.emptySet();
+        }
+
+        final Set<String> values = new LinkedHashSet<>();
+        for (final String token : raw) {
+            if (token == null) {
+                continue;
+            }
+            final String value = token.trim().toLowerCase(Locale.ROOT);
+            if (!value.isEmpty()) {
+                values.add(value);
+            }
+        }
+
+        return Collections.unmodifiableSet(values);
     }
 }
